@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# wasabi - WasabiOS のお助けコマンド
+# 新しいサブコマンドを足したいときは cmd_xxx という関数を作り、help に1行足すだけ。
+set -uo pipefail
+
+. /etc/wasabios/release
+
+G=$'\e[1;32m'; Y=$'\e[1;33m'; R=$'\e[1;31m'; B=$'\e[1m'; N=$'\e[0m'
+[ -t 1 ] || { G=; Y=; R=; B=; N=; }
+
+ok()   { printf '  %s✓%s %s\n' "$G" "$N" "$*"; }
+warn() { printf '  %s!%s %s\n' "$Y" "$N" "$*"; }
+bad()  { printf '  %s✗%s %s\n' "$R" "$N" "$*"; }
+step() { printf '\n%s==> %s%s\n' "$G" "$*" "$N"; }
+has()  { command -v "$1" >/dev/null 2>&1; }
+
+is_mac() { grep -qi apple /sys/class/dmi/id/sys_vendor 2>/dev/null; }
+
+cmd_help() {
+  cat <<EOF
+${B}wasabi${N} - $WASABIOS_NAME のお助けコマンド
+
+  wasabi info      このパソコンの情報を表示
+  wasabi update    OS とアプリをまとめて最新にする (apt / snap / flatpak)
+  wasabi clean     不要なファイルを掃除して空き容量を増やす
+  wasabi doctor    よくある問題をチェックする (MacBook 向けの確認つき)
+  wasabi theme     壁紙と色を $WASABIOS_NAME の標準に戻す (自分のユーザーだけ)
+  wasabi version   $WASABIOS_NAME のバージョン
+EOF
+}
+
+cmd_version() {
+  . /usr/lib/os-release.distrib 2>/dev/null || . /etc/os-release
+  echo "$WASABIOS_NAME $WASABIOS_VERSION ($WASABIOS_CODENAME) / base: $PRETTY_NAME"
+}
+
+cmd_info() {
+  local model cpu mem disk kernel up bat=""
+  model=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo "不明")
+  cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ *//; s/  */ /g')
+  mem=$(free -h | awk '/^Mem:/ {print $3 " / " $2}')
+  disk=$(df -h / | awk 'NR==2 {print $3 " / " $2 " (" $5 " 使用)"}')
+  kernel=$(uname -r)
+  up=$(uptime -p | sed 's/^up //')
+  for b in /sys/class/power_supply/BAT*; do
+    [ -r "$b/capacity" ] && bat="$(cat "$b/capacity")% ($(cat "$b/status"))"
+  done
+
+  printf '%s' "$G"
+  cat <<'ART'
+     ▄██▄   ▄██▄
+    ████████████
+    ▀██████████▀
+      ▀██████▀
+        ▀██▀
+         ▐▌
+ART
+  printf '%s' "$N"
+  printf '  %s%s %s%s\n' "$B" "$WASABIOS_NAME" "$WASABIOS_VERSION" "$N"
+  # 日本語は文字幅が2なので、ラベルは手で幅を揃えている
+  echo "  ベース     $(. /usr/lib/os-release.distrib 2>/dev/null && echo "$PRETTY_NAME")"
+  echo "  機種       $model"
+  echo "  CPU        $cpu"
+  echo "  メモリ     $mem"
+  echo "  ディスク   $disk"
+  echo "  カーネル   $kernel"
+  echo "  起動時間   $up"
+  [ -z "$bat" ] || echo "  バッテリー $bat"
+  echo
+}
+
+cmd_update() {
+  step "APT (Ubuntu のパッケージ)"
+  sudo apt-get update && sudo apt-get full-upgrade -y
+  if has snap; then step "Snap"; sudo snap refresh; fi
+  if has flatpak; then step "Flatpak"; flatpak update -y; fi
+  if [ -f /var/run/reboot-required ]; then
+    warn "再起動が必要です"
+  else
+    ok "すべて最新です"
+  fi
+}
+
+cmd_clean() {
+  local before after
+  before=$(df --output=avail -B1M / | tail -1)
+  step "使われていないパッケージを削除"
+  sudo apt-get autoremove --purge -y
+  sudo apt-get clean
+  step "古いログを削除 (2週間より前)"
+  sudo journalctl --vacuum-time=2weeks -q
+  if has snap; then
+    step "古い Snap のリビジョンを削除"
+    snap list --all | awk '/disabled/ {print $1, $3}' | while read -r name rev; do
+      sudo snap remove "$name" --revision="$rev"
+    done
+  fi
+  after=$(df --output=avail -B1M / | tail -1)
+  ok "空き容量が $((after - before)) MB 増えました"
+}
+
+cmd_doctor() {
+  step "システム"
+  local avail
+  avail=$(df --output=pcent / | tail -1 | tr -dc 0-9)
+  if [ "$avail" -lt 90 ]; then ok "ディスク使用率 ${avail}%"; else bad "ディスクが残りわずか (${avail}%) → wasabi clean"; fi
+
+  local upd
+  upd=$(apt list --upgradable 2>/dev/null | grep -c upgradable)
+  if [ "$upd" -eq 0 ]; then ok "アップデートなし"; else warn "$upd 個のアップデートがあります → wasabi update"; fi
+
+  if ping -c1 -W2 archive.ubuntu.com >/dev/null 2>&1; then ok "インターネット接続 OK"; else bad "インターネットに繋がりません"; fi
+
+  if is_mac; then
+    step "MacBook ($(cat /sys/class/dmi/id/product_name 2>/dev/null))"
+    # Wi-Fi (2012年前後の MacBook は Broadcom 製)
+    local wifi
+    wifi=$(lspci -nnk 2>/dev/null | grep -A3 -i 'network controller' | grep -i 'driver in use' | awk -F': ' '{print $2}')
+    if [ -n "$wifi" ]; then ok "Wi-Fi ドライバー: $wifi"
+    else bad "Wi-Fi ドライバーが動いていません → sudo apt install bcmwl-kernel-source"; fi
+
+    if lsmod | grep -q '^applesmc'; then ok "applesmc (温度・ファンのセンサー) 読み込み済み"
+    else warn "applesmc が読み込まれていません"; fi
+
+    if systemctl is-active -q mbpfan 2>/dev/null; then ok "mbpfan (ファン制御) 動作中"
+    else warn "mbpfan が動いていません → sudo apt install wasabios-mac"; fi
+
+    local t
+    t=$(sensors 2>/dev/null | awk '/Package id 0|Core 0/ {gsub(/[+°C]/,"",$0); print $0; exit}' | grep -oE '[0-9]+\.[0-9]' | head -1)
+    [ -n "$t" ] && { if [ "${t%.*}" -lt 80 ]; then ok "CPU 温度 ${t}℃"; else warn "CPU 温度が高め ${t}℃"; fi; }
+
+    for b in /sys/class/power_supply/BAT*; do
+      [ -r "$b/energy_full" ] || [ -r "$b/charge_full" ] || continue
+      local full design
+      full=$(cat "$b/energy_full" 2>/dev/null || cat "$b/charge_full")
+      design=$(cat "$b/energy_full_design" 2>/dev/null || cat "$b/charge_full_design")
+      [ "$design" -gt 0 ] && {
+        local health=$((full * 100 / design))
+        if [ "$health" -ge 60 ]; then ok "バッテリーの健康度 ${health}%"
+        else warn "バッテリーがだいぶ劣化しています (${health}%)"; fi
+      }
+    done
+  fi
+  echo
+}
+
+cmd_theme() {
+  # 自分で変えた設定を消すと、wasabios-desktop が決めた既定値に戻る
+  has gsettings || { bad "GNOME 以外では使えません"; return 1; }
+  [ -f /usr/share/glib-2.0/schemas/90_wasabios.gschema.override ] \
+    || { bad "wasabios-desktop が入っていません → sudo apt install wasabios-desktop"; return 1; }
+  gsettings reset org.gnome.desktop.background picture-uri
+  gsettings reset org.gnome.desktop.background picture-uri-dark
+  gsettings reset org.gnome.desktop.background picture-options
+  gsettings reset org.gnome.desktop.screensaver picture-uri
+  gsettings reset org.gnome.desktop.interface gtk-theme
+  gsettings reset org.gnome.desktop.interface icon-theme
+  gsettings reset org.gnome.desktop.interface color-scheme
+  ok "$WASABIOS_NAME の見た目にしました"
+}
+
+sub="${1:-info}"; shift || true
+if declare -F "cmd_$sub" >/dev/null; then
+  "cmd_$sub" "$@"
+else
+  bad "知らないコマンドです: $sub"
+  cmd_help
+  exit 1
+fi
