@@ -28,3 +28,7 @@ picture-uri = 'file:///usr/share/backgrounds/wasabios/wasabios-default.svg'
 gtk-theme = 'Yaru-sage-dark'
 icon-theme = 'Yaru-sage'
 color-scheme = 'prefer-dark'
+
+# ログイン画面 (GDM) の下のロゴ
+[org.gnome.login-screen]
+logo = '/usr/share/wasabios/login-logo.png'

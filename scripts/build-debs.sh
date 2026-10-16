@@ -54,6 +54,8 @@ REL
     wasabios-desktop)
       install -Dm644 "$ROOT_DIR/artwork/wallpaper.svg" "$dst/usr/share/backgrounds/wasabios/wasabios-default.svg"
       rsvg-convert "$ROOT_DIR/artwork/watermark.svg" -o "$dst/usr/share/plymouth/themes/wasabios/watermark.png"
+      install -d "$dst/usr/share/wasabios"
+      rsvg-convert -h 96 "$ROOT_DIR/artwork/watermark.svg" -o "$dst/usr/share/wasabios/login-logo.png"
       ;;
     wasabios-boot)
       # 自作 init (scratch/init/) と BusyBox を静的リンクでビルドして入れる

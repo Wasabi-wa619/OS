@@ -180,8 +180,12 @@ nvram=""
 chroot "$T" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=WasabiOS $nvram
 
 if [ "$MODE" = disk ]; then
-  # Mac などは決まった場所 (/EFI/BOOT/BOOTX64.EFI) から起動するので、そこにも入れる。古い BIOS の PC 用にも入れる
-  chroot "$T" grub-install --target=x86_64-efi --efi-directory=/boot/efi --removable
+  # Mac などは決まった場所 (/EFI/BOOT/BOOTX64.EFI) から起動するので、そこにも同じ GRUB を置く。
+  # (grub-install --removable だと Ubuntu の汎用 GRUB が入り、設定を見つけられずに止まる)
+  mkdir -p "$T/boot/efi/EFI/BOOT"
+  cp "$T/boot/efi/EFI/WasabiOS/grubx64.efi" "$T/boot/efi/EFI/BOOT/BOOTX64.EFI"
+  cp "$T/boot/efi/EFI/WasabiOS/grub.cfg" "$T/boot/efi/EFI/BOOT/grub.cfg"
+  # 古い BIOS の PC 用にも入れる
   chroot "$T" grub-install --target=i386-pc "$TARGET" 2>/dev/null || warn "BIOS 用の起動設定はスキップ"
 fi
 chroot "$T" apt-get purge -y -qq wasabios-installer >/dev/null 2>&1 || true
