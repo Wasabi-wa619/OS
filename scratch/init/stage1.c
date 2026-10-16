@@ -155,7 +155,8 @@ static int attach_loop(const char *file, char *loopdev, size_t len)
 	if (ffd < 0 || lfd < 0)
 		return -1;
 	struct loop_config cfg = { .fd = (unsigned)ffd };
-	cfg.info.lo_flags = LO_FLAGS_READ_ONLY | LO_FLAGS_AUTOCLEAR;
+	/* AUTOCLEAR は付けない: ここで fd を閉じるとマウント前に外れてしまう */
+	cfg.info.lo_flags = LO_FLAGS_READ_ONLY;
 	snprintf((char *)cfg.info.lo_file_name, LO_NAME_SIZE, "%s", file);
 	int r = ioctl(lfd, LOOP_CONFIGURE, &cfg);
 	close(ffd);

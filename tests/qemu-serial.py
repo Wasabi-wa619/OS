@@ -11,6 +11,7 @@ import argparse, os, select, subprocess, sys, tempfile, time
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--iso"); ap.add_argument("--disk"); ap.add_argument("--append")
+ap.add_argument("--initrd", help="ISO の initrd.img の代わりに使う (init を作り直したときの確認用)")
 ap.add_argument("--uefi", action="store_true"); ap.add_argument("--mem", default="3072")
 ap.add_argument("--timeout", type=int, default=900)
 ap.add_argument("--expect", required=True, help="この文字列が出たら起動完了とみなす")
@@ -30,7 +31,7 @@ if a.iso:
         for f in ("vmlinuz", "initrd.img"):
             subprocess.run(["xorriso", "-osirrox", "on", "-indev", a.iso, "-extract", f"/boot/{f}", f"{tmp}/{f}"],
                            check=True, capture_output=True)
-        cmd += ["-kernel", f"{tmp}/vmlinuz", "-initrd", f"{tmp}/initrd.img", "-append", a.append]
+        cmd += ["-kernel", f"{tmp}/vmlinuz", "-initrd", a.initrd or f"{tmp}/initrd.img", "-append", a.append]
     else:
         cmd += ["-boot", "d"]
 else:
