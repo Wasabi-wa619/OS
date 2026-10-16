@@ -40,6 +40,7 @@ bash scratch/kernel/build-kernel.sh  # → out/kernel/*.deb  (4 コアで 1〜2 
 |---|---|
 | `wasabi-init.c` | PID 1 本体。マウント、起動ロゴ、シェルの起動と再起動、ゾンビ回収、電源オフ |
 | `stage1.c` | 本物の OS を探して引き継ぐ部分 (ループデバイス、overlay、switch_root を自前で実装) |
+| `restore.c` | 「前の状態に戻す」。btrfs のスナップショットを ioctl で直接操作して、OS が起動する前にシステムを入れ替える |
 
 カーネルのコマンドラインで動きが変わります:
 
@@ -47,7 +48,8 @@ bash scratch/kernel/build-kernel.sh  # → out/kernel/*.deb  (4 コアで 1〜2 
 |---|---|
 | `wasabi.live` | USB / DVD の中の `wasabios/root.squashfs` を探して読み込み専用でマウントし、書き込み用の層を重ねて起動 |
 | `wasabi.toram` | ライブのとき、squashfs をメモリにコピーしてから起動 (USB を抜ける) |
-| `root=UUID=...` | インストール済みのディスクから起動 |
+| `root=UUID=...` | インストール済みのディスクから起動 (`rootflags=subvol=@` も使える) |
+| `wasabi.rollback=menu` | 保存してある状態の一覧を出して、選んだ状態に戻す (起動メニューの「前の状態に戻す」) |
 | どちらも無し | この initramfs 自体を OS として動かす (シード版 / レスキュー) |
 
 ライブ起動のとき、ラベルが `WASABI-DATA` の ext4 パーティションがあれば、変更をそこに保存します。

@@ -25,3 +25,9 @@ else
   chmod 644 "$TMP"
   mv "$TMP" "$DST"
 fi
+
+# ターミナルのログイン時の「Welcome to ...」は /etc/lsb-release の説明文を使うので、それも合わせる
+# (DISTRIB_ID=Ubuntu はそのまま。PPA などのツールはこちらを見る)
+if [ -f /etc/lsb-release ]; then
+  sed -i "s|^DISTRIB_DESCRIPTION=.*|DISTRIB_DESCRIPTION=\"$WASABIOS_NAME $WASABIOS_VERSION ($UBUNTU_PRETTY)\"|" /etc/lsb-release
+fi

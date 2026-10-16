@@ -11,11 +11,13 @@ import argparse, os, select, subprocess, sys, tempfile, time
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--iso"); ap.add_argument("--disk"); ap.add_argument("--append")
+ap.add_argument("--kernel", help="直接起動するカーネル (--initrd と一緒に、ISO なしでも使える)")
 ap.add_argument("--initrd", help="ISO の initrd.img の代わりに使う (init を作り直したときの確認用)")
 ap.add_argument("--uefi", action="store_true"); ap.add_argument("--mem", default="3072")
 ap.add_argument("--timeout", type=int, default=900)
 ap.add_argument("--expect", required=True, help="この文字列が出たら起動完了とみなす")
 ap.add_argument("--prompt", default="# ", help="コマンドの終わりを判定する文字列")
+ap.add_argument("--login", help="ユーザー名:パスワード でログインしてからコマンドを打つ")
 ap.add_argument("cmds", nargs="*")
 a = ap.parse_args()
 
@@ -34,6 +36,8 @@ if a.iso:
         cmd += ["-kernel", f"{tmp}/vmlinuz", "-initrd", a.initrd or f"{tmp}/initrd.img", "-append", a.append]
     else:
         cmd += ["-boot", "d"]
+elif a.kernel:
+    cmd += ["-kernel", a.kernel, "-initrd", a.initrd, "-append", a.append or ""]
 else:
     cmd += ["-boot", "c"]
 
@@ -57,6 +61,14 @@ def pump(token, timeout):
 t0 = time.time()
 ok = pump(a.expect, a.timeout)
 print(f"\n### boot {'OK' if ok else 'FAILED'} after {time.time()-t0:.0f}s", flush=True)
+if ok and a.login:
+    user, pw = a.login.split(":", 1)
+    time.sleep(1)
+    p.stdin.write((user + "\n").encode()); p.stdin.flush()
+    pump("ワード:", 60)   # WasabiOS のログインは日本語 (「パスワード:」)
+    time.sleep(1)
+    p.stdin.write((pw + "\n").encode()); p.stdin.flush()
+    ok = pump(a.prompt, 120)
 if ok:
     for c in a.cmds:
         time.sleep(1)

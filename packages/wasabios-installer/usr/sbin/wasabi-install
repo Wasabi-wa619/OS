@@ -206,6 +206,10 @@ chroot "$T" update-grub
 
 # インストール直後の状態を保存しておく (パワーウォッシュ・「前の状態に戻す」で使う)
 say "インストール直後の状態を保存"
+# インストール中の apt で自動保存されたものは、インストール直後の状態と同じなので消す
+for s in "$T"/.snapshots/*_before-update; do
+  [ -d "$s" ] && btrfs subvolume delete "$s" >/dev/null
+done
 btrfs subvolume snapshot -r "$T" "$T/.snapshots/factory" >/dev/null
 
 sync

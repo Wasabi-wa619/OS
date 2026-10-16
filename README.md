@@ -46,6 +46,28 @@ wasabi doctor    よくある問題をチェックする (MacBook の Wi-Fi・�
 wasabi theme     壁紙と色を WasabiOS の標準に戻す
 ```
 
+### 前の状態に戻す (WasabiOS Restore)
+
+Chrome OS のように、システムが壊れても前の状態に戻せます (SSD にインストールした WasabiOS)。
+
+- アップデートやアプリのインストールの **直前に自動でシステムの状態を保存** (新しい 5 個まで)
+- 戻しても **自分のファイル (/home) は消えない** (システムと自分のファイルは別の場所にある)
+- 戻す作業は、OS が起動する前に **自作の wasabi-init が行う**ので、OS が起動しなくなっても戻せる
+
+```
+wasabi snapshot              保存してある状態の一覧
+wasabi snapshot save 名前    今の状態を保存
+wasabi rollback 番号         次の再起動でその状態に戻す
+wasabi powerwash             インストール直後の状態に戻す (自分のファイルは残る)
+wasabi snapshot clean        戻す前の古いシステムを消して容量を空ける
+```
+
+**起動しなくなったとき**: 起動メニュー (GRUB) で **「WasabiOS を前の状態に戻す (Restore)」** を選ぶと、
+保存してある状態の一覧が出ます。番号を入れて `yes` で戻ります。
+
+しくみ: ディスクは btrfs で、システム (`@`)・自分のファイル (`@home`)・保存した状態 (`@snapshots`) に分かれています。
+戻すときは `@` を保存しておいた状態と入れ替えるだけなので一瞬です (`scratch/init/restore.c`)。
+
 ### Ubuntu との互換性について
 
 OS の内部的な ID (`/etc/os-release` の `ID=ubuntu` や `lsb_release -i`) は Ubuntu のまま残し、
