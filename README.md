@@ -140,7 +140,7 @@ Mac であることは自動で判定して `wasabios-mac` も入ります。
 | ISO に入れるアプリ | `config/packages/extra.list` |
 | ISO だけの設定 | `hooks/`、`overlay/`、`config/grub.cfg` |
 
-パッケージを配り直すときは `config/os.conf` の `OS_VERSION` を上げると、apt が「新しいバージョン」として扱います。
+パッケージの版数は `OS_VERSION` + ビルド日時 (例 `0.1+202610161620`) になるので、作り直すたびに apt が新しいものとして入れます。
 
 ## ディレクトリ構成
 

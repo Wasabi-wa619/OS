@@ -2,7 +2,7 @@ Package: wasabios-desktop
 Version: @VERSION@
 Architecture: all
 Maintainer: @MAINTAINER@
-Depends: wasabios-base (= @VERSION@), plymouth-theme-spinner, librsvg2-common
+Depends: wasabios-base (>= @MINVERSION@), plymouth-theme-spinner, librsvg2-common
 Recommends: yaru-theme-gtk, yaru-theme-icon
 Section: misc
 Priority: optional

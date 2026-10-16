@@ -10,6 +10,10 @@ command -v rsvg-convert >/dev/null || { echo "rsvg-convert がありません: s
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT_DIR/config/os.conf"
 
+# パッケージの版数: os.conf の OS_VERSION + ビルド日時 (例 0.1+202610161620)。
+# 作り直すたびに新しい版になるので、apt が必ず新しいほうを入れる
+DEB_VERSION="${DEB_VERSION:-$OS_VERSION+$(date -u +%Y%m%d%H%M)}"
+
 STAGE="$ROOT_DIR/build/debs"
 OUT="$ROOT_DIR/out/debs"
 mkdir -p "$STAGE" "$OUT"
@@ -24,7 +28,7 @@ for name in "${names[@]}"; do
   rm -f "$OUT/${name}"_*.deb
   cp -a "$src" "$dst"
 
-  sed -e "s|@VERSION@|$OS_VERSION|g" \
+  sed -e "s|@VERSION@|$DEB_VERSION|g" -e "s|@MINVERSION@|$OS_VERSION|g" \
       -e "s|@OS_NAME@|$OS_NAME|g" \
       -e "s|@MAINTAINER@|$OS_MAINTAINER|g" \
       "$dst/DEBIAN/control.in" > "$dst/DEBIAN/control"
@@ -73,6 +77,6 @@ REL
   done
 
   arch=$(awk '/^Architecture:/ {print $2}' "$dst/DEBIAN/control")
-  dpkg-deb --root-owner-group -Zxz --build "$dst" "$OUT/${name}_${OS_VERSION}_${arch}.deb" >/dev/null
-  echo "built: out/debs/${name}_${OS_VERSION}_${arch}.deb"
+  dpkg-deb --root-owner-group -Zxz --build "$dst" "$OUT/${name}_${DEB_VERSION}_${arch}.deb" >/dev/null
+  echo "built: out/debs/${name}_${DEB_VERSION}_${arch}.deb"
 done

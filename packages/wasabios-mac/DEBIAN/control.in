@@ -2,7 +2,7 @@ Package: wasabios-mac
 Version: @VERSION@
 Architecture: all
 Maintainer: @MAINTAINER@
-Depends: wasabios-base (= @VERSION@), mbpfan, lm-sensors
+Depends: wasabios-base (>= @MINVERSION@), mbpfan, lm-sensors
 Section: misc
 Priority: optional
 Description: @OS_NAME@ support for Intel MacBooks
