@@ -1,3 +1,0 @@
-#!/bin/sh
-. /etc/os-release
-printf '\n  ようこそ %s へ!  (%s ベース)\n\n' "$PRETTY_NAME" "Ubuntu $UBUNTU_CODENAME"
