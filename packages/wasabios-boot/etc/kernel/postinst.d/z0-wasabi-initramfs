@@ -1,0 +1,4 @@
+#!/bin/sh
+# カーネルが入った/更新されたときに自作の initramfs を作る
+[ -x /usr/sbin/wasabi-mkinitramfs ] && /usr/sbin/wasabi-mkinitramfs "$1" >&2
+exit 0

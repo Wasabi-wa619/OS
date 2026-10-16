@@ -1,0 +1,14 @@
+# シード版 (この initramfs だけで動く小さい版) に入れるドライバー
+# 必要とする他のドライバーも自動で入る。存在しないハードウェアのものは読み込みに失敗するだけ。
+
+# 有線 LAN (MacBook の Broadcom / Intel / Realtek / 仮想マシン)
+tg3
+e1000
+e1000e
+r8169
+virtio_net
+# MacBook のセンサー・キーボード・トラックパッド
+applesmc
+coretemp
+bcm5974
+hid_apple

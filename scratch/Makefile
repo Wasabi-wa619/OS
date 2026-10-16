@@ -14,7 +14,7 @@ all:
 
 deps:
 	sudo apt-get update
-	sudo apt-get install -y build-essential bc flex bison libelf-dev libssl-dev \
+	sudo apt-get install -y build-essential bc flex bison libelf-dev libssl-dev libdw-dev gawk rsync kmod dpkg-dev zstd debhelper \
 		cpio curl xorriso mtools grub-common grub-pc-bin grub-efi-amd64-bin \
 		qemu-system-x86 ovmf
 

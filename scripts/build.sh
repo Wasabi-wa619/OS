@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # 独自OSのライブISOをビルドするメインスクリプト
 #   使い方: sudo ./scripts/build.sh
-# 流れ: debootstrap でUbuntuの最小システムを作る
-#      → chroot内で hooks/*.sh を順番に実行してカスタマイズ
+# 流れ: WasabiOS カーネル (自前ビルド) と独自パッケージを用意
+#      → debootstrap で Ubuntu の最小システム (ユーザーランド) を作る
+#      → chroot内で hooks/*.sh を順番に実行してカスタマイズ (カーネルは Ubuntu のではなく WasabiOS のもの)
 #      → overlay/ のファイルを上書きコピー
 #      → squashfs に圧縮して GRUB(BIOS+UEFI) で起動できるISOにする
+#        起動すると、自作の init (wasabi-init) が squashfs を見つけて systemd に引き継ぐ
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,7 +33,12 @@ unmount_chroot() {
 }
 trap unmount_chroot EXIT
 
-# ---- 0. 独自パッケージ (.deb) ------------------------------------------
+# ---- 0. WasabiOS カーネルと独自パッケージ (.deb) ---------------------------
+if ! ls "$ROOT_DIR"/out/kernel/linux-image-*.deb >/dev/null 2>&1; then
+  log "WasabiOS カーネルが無いのでビルド (1〜2 時間)"
+  sudo -u "#$(stat -c %u "$ROOT_DIR")" bash "$ROOT_DIR/scratch/kernel/build-kernel.sh" \
+    || bash "$ROOT_DIR/scratch/kernel/build-kernel.sh"
+fi
 log "独自パッケージをビルド"
 bash "$ROOT_DIR/scripts/build-debs.sh"
 
@@ -65,7 +72,7 @@ chmod +x "$CHROOT/usr/sbin/policy-rc.d"
 # 設定・パッケージリスト・フックを chroot に渡す
 rm -rf "$CHROOT/tmp/build"
 mkdir -p "$CHROOT/tmp/build"
-cp -r "$ROOT_DIR/config" "$ROOT_DIR/hooks" "$ROOT_DIR/out/debs" "$CHROOT/tmp/build/"
+cp -r "$ROOT_DIR/config" "$ROOT_DIR/hooks" "$ROOT_DIR/out/debs" "$ROOT_DIR/out/kernel" "$CHROOT/tmp/build/"
 
 for hook in "$ROOT_DIR"/hooks/*.sh; do
   name="$(basename "$hook")"
@@ -87,17 +94,17 @@ unmount_chroot
 # ---- 3. ISO イメージの作成 -----------------------------------------------
 log "ISO の中身を作成"
 rm -rf --one-file-system "$IMAGE"
-mkdir -p "$IMAGE/casper" "$IMAGE/boot/grub" "$IMAGE/.disk" "$OUT"
+mkdir -p "$IMAGE/boot/grub" "$IMAGE/wasabios" "$IMAGE/.disk" "$OUT"
 
-cp "$(ls -1 "$CHROOT"/boot/vmlinuz-* | sort -V | tail -1)" "$IMAGE/casper/vmlinuz"
-cp "$(ls -1 "$CHROOT"/boot/initrd.img-* | sort -V | tail -1)" "$IMAGE/casper/initrd"
+KVER=$(ls -1 "$CHROOT"/boot/vmlinuz-*-wasabi | sort -V | tail -1 | sed 's|.*/vmlinuz-||')
+cp "$CHROOT/boot/vmlinuz-$KVER" "$IMAGE/boot/vmlinuz"
+cp "$CHROOT/boot/initrd.img-$KVER" "$IMAGE/boot/initrd.img"   # 自作 initramfs (wasabi-mkinitramfs で作ったもの)
 
-chroot "$CHROOT" dpkg-query -W --showformat='${Package} ${Version}\n' > "$IMAGE/casper/filesystem.manifest"
-du -sx --block-size=1 "$CHROOT" | cut -f1 > "$IMAGE/casper/filesystem.size"
-echo "$OS_NAME $OS_VERSION \"$OS_CODENAME\" - $ARCH ($(date +%Y%m%d))" > "$IMAGE/.disk/info"
+chroot "$CHROOT" dpkg-query -W --showformat='${Package} ${Version}\n' > "$IMAGE/wasabios/packages.txt"
+echo "$OS_NAME $OS_VERSION \"$OS_CODENAME\" - $ARCH ($(date +%Y%m%d)) kernel $KVER" > "$IMAGE/.disk/info"
 
 log "squashfs に圧縮 (数分かかります)"
-mksquashfs "$CHROOT" "$IMAGE/casper/filesystem.squashfs" \
+mksquashfs "$CHROOT" "$IMAGE/wasabios/root.squashfs" \
   -noappend -comp xz -e boot/grub -e .debootstrap-done
 
 sed -e "s/@OS_NAME@/$OS_NAME/g" "$ROOT_DIR/config/grub.cfg" > "$IMAGE/boot/grub/grub.cfg"

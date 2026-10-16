@@ -1,0 +1,26 @@
+#!/bin/sh
+# WasabiOS 版 update-initramfs (Ubuntu のものは update-initramfs.distrib に退避してある)
+# Ubuntu のパッケージから呼ばれても、自作の initramfs (wasabi-mkinitramfs) を作る。
+mode=-u
+ver=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -c|-u|-d) mode="$1" ;;
+    -k) shift; ver="$1" ;;
+    -k*) ver="${1#-k}" ;;
+  esac
+  shift
+done
+if [ -z "$ver" ] || [ "$ver" = all ] || [ "$ver" = latest ]; then
+  vers=$(ls /boot/vmlinuz-* 2>/dev/null | sed 's|/boot/vmlinuz-||')
+else
+  vers="$ver"
+fi
+for v in $vers; do
+  if [ "$mode" = -d ]; then
+    rm -f "/boot/initrd.img-$v"
+  else
+    /usr/sbin/wasabi-mkinitramfs "$v"
+  fi
+done
+exit 0

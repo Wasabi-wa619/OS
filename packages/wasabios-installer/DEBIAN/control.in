@@ -1,0 +1,10 @@
+Package: wasabios-installer
+Version: @VERSION@
+Architecture: all
+Maintainer: @MAINTAINER@
+Depends: wasabios-boot (= @VERSION@), rsync, gdisk, dosfstools, e2fsprogs, parted, grub-efi-amd64-bin, grub-pc-bin, efibootmgr, os-prober, util-linux
+Section: admin
+Priority: optional
+Description: @OS_NAME@ installer
+ ライブ USB の @OS_NAME@ を SSD / HDD にインストールする wasabi-install。
+ インストール後は自動で取り除かれる。

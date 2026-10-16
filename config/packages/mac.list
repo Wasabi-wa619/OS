@@ -1,4 +1,4 @@
 # MAC_SUPPORT=yes のときに入る (2012年前後の Intel MacBook 向け)
 # Broadcom 製 Wi-Fi のドライバー (ライブ起動でも Wi-Fi が使えるように)
 bcmwl-kernel-source
-linux-headers-generic
+# (DKMS が WasabiOS カーネルのヘッダー向けにビルドする。ヘッダーは hooks/08-kernel.sh で入る)

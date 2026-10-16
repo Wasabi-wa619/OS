@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+  # 入っているカーネル全部の initramfs を自作のものにする
+  for k in /boot/vmlinuz-*; do
+    [ -e "$k" ] && /usr/sbin/wasabi-mkinitramfs "${k#/boot/vmlinuz-}"
+  done
+  if [ -z "${WASABIOS_SKIP_GRUB:-}" ] && command -v update-grub >/dev/null && [ -d /boot/grub ]; then
+    update-grub || true
+  fi
+fi

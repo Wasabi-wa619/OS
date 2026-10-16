@@ -1,0 +1,4 @@
+#!/bin/sh
+# カーネルが消されたら initramfs も消す
+rm -f "/boot/initrd.img-$1"
+exit 0

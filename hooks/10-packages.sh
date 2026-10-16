@@ -14,7 +14,6 @@ read_list() { [ -f "$1" ] && grep -vE '^\s*(#|$)' "$1" || true; }
 PKGS=$( {
   read_list /tmp/build/config/packages/base.list
   read_list "/tmp/build/config/packages/$DESKTOP.list"
-  [ "$MAC_SUPPORT" = yes ] && read_list /tmp/build/config/packages/mac.list
   read_list /tmp/build/config/packages/extra.list
 } | sort -u )
 

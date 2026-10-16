@@ -1,7 +1,8 @@
 # GitHub 上で自動ビルドする。
-# - .deb (独自パッケージ): main への push のたびに作る → Actions の実行結果の Artifacts から取れる
-# - ISO: Actions タブ → "Build" → "Run workflow" で手動実行したときと、v* タグを push したときに作る
-# - ゼロから組み立てる版 (scratch/) の ISO: main への push、手動実行、タグのときに作る
+# - kernel : WasabiOS カーネル (.deb)。設定が変わらない限りキャッシュを使う (初回は数時間)
+# - debs   : WasabiOS の独自パッケージ (.deb)。push のたびに作る
+# - iso    : フル版 ISO (WasabiOS カーネル + 自作 init + Ubuntu のユーザーランド)。手動実行とタグのとき
+# - scratch: シード版 ISO (initramfs だけで動く小さい版)
 # - v0.1 のようなタグを push すると Releases に .deb と ISO を添付する
 name: Build
 
@@ -26,6 +27,31 @@ permissions:
   contents: write
 
 jobs:
+  kernel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: out/kernel
+          key: kernel-${{ hashFiles('scratch/versions.conf', 'scratch/kernel/**') }}
+      - name: Free disk space
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Build kernel
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc flex bison libelf-dev libssl-dev libdw-dev gawk \
+            rsync kmod dpkg-dev zstd debhelper cpio curl
+          bash ./scratch/kernel/build-kernel.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kernel
+          path: out/kernel/*.deb
+
   debs:
     runs-on: ubuntu-24.04
     steps:
@@ -41,51 +67,55 @@ jobs:
 
   iso:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    needs: [kernel]
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: kernel
+          path: out/kernel
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
-
       - name: Install build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y debootstrap squashfs-tools xorriso mtools librsvg2-bin \
             grub-common grub-pc-bin grub-efi-amd64-bin
-
       - name: Build ISO
         run: |
           sudo DESKTOP="${{ inputs.desktop || 'gnome' }}" \
                MAC_SUPPORT="${{ inputs.mac_support || 'yes' }}" \
                bash ./scripts/build.sh
-
       - name: Checksum
-        run: cd out && sha256sum *.iso | tee SHA256SUMS
-
+        run: cd out && sha256sum wasabios-[0-9]*.iso | tee SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: iso-${{ inputs.desktop || 'gnome' }}
           path: |
-            out/*.iso
+            out/wasabios-[0-9]*.iso
             out/SHA256SUMS
           compression-level: 0
 
-  # ゼロから組み立てる版 (scratch/)。小さいので push のたびに作る
   scratch:
+    needs: [kernel]
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: kernel
+          path: out/kernel
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc flex bison libelf-dev libssl-dev \
-            cpio curl xorriso mtools grub-common grub-pc-bin grub-efi-amd64-bin
-      - name: Build WasabiOS Scratch
+          sudo apt-get install -y build-essential cpio curl zstd kmod xorriso mtools \
+            grub-common grub-pc-bin grub-efi-amd64-bin
+      - name: Build WasabiOS Scratch (seed)
         run: bash ./scratch/build.sh
       - uses: actions/upload-artifact@v4
         with:

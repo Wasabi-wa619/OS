@@ -1,0 +1,30 @@
+#!/bin/sh
+# wasabi-mkinitramfs <カーネルのバージョン>
+#   自作の init (wasabi-init) と BusyBox を詰めた initramfs を /boot/initrd.img-<バージョン> に作る。
+#   起動時、wasabi-init がディスクや USB から OS を見つけて systemd に引き継ぐ。
+#   失敗したときは、この initramfs の中のシェル (レスキュー) が使える。
+set -e
+ver="$1"
+[ -n "$ver" ] || { echo "使い方: wasabi-mkinitramfs <カーネルのバージョン>" >&2; exit 1; }
+PAYLOAD=/usr/lib/wasabios/initramfs
+out="/boot/initrd.img-$ver"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp"/bin "$tmp"/sbin "$tmp"/usr/bin "$tmp"/usr/sbin "$tmp"/dev "$tmp"/proc \
+         "$tmp"/sys "$tmp"/run "$tmp"/tmp "$tmp"/root "$tmp"/etc "$tmp"/newroot
+install -m755 "$PAYLOAD/init" "$tmp/init"
+install -m755 "$PAYLOAD/busybox" "$tmp/bin/busybox"
+for app in $("$tmp/bin/busybox" --list-full); do
+  [ -e "$tmp/$app" ] || ln -s /bin/busybox "$tmp/$app"
+done
+ln -sf /init "$tmp/sbin/init"
+echo wasabi > "$tmp/etc/hostname"
+. /etc/wasabios/release
+echo "$WASABIOS_NAME $WASABIOS_VERSION ($WASABIOS_CODENAME)" > "$tmp/etc/wasabios-release"
+printf 'root:x:0:0:root:/root:/bin/sh\n' > "$tmp/etc/passwd"
+printf 'export PS1="(rescue) # "\nexport PATH=/bin:/sbin:/usr/bin:/usr/sbin\n' > "$tmp/etc/profile"
+
+(cd "$tmp" && find . -print0 | sort -z | cpio --null -o -H newc -R 0:0 --quiet) | gzip -9 > "$out.new"
+mv "$out.new" "$out"
+echo "wasabi-mkinitramfs: $out"

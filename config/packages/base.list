@@ -1,6 +1,4 @@
 # 全構成に入るパッケージ (1行1つ、#はコメント)
-linux-generic
-casper
 ubuntu-minimal
 ubuntu-standard
 sudo
@@ -16,3 +14,14 @@ wget
 git
 htop
 language-pack-ja
+# WasabiOS カーネルは hooks/08-kernel.sh で入れる (Ubuntu のカーネルは使わない)
+# ハードウェアのファームウェア (Wi-Fi・GPU など)
+linux-firmware
+# インストーラーが使うもの
+grub-efi-amd64
+grub-pc-bin
+efibootmgr
+os-prober
+rsync
+gdisk
+dosfstools

@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+if [ "$1" = remove ] || [ "$1" = purge ] || [ "$1" = abort-install ]; then
+  if [ "$(dpkg-divert --listpackage /usr/sbin/update-initramfs)" = wasabios-boot ]; then
+    rm -f /usr/sbin/update-initramfs
+    dpkg-divert --package wasabios-boot --divert /usr/sbin/update-initramfs.distrib \
+      --rename --remove /usr/sbin/update-initramfs
+  fi
+  # Ubuntu の initramfs に戻す
+  if [ -x /usr/sbin/update-initramfs ]; then
+    /usr/sbin/update-initramfs -u -k all || true
+  fi
+fi

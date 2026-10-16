@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+# wasabi-install - ライブ USB で動いている WasabiOS を SSD / HDD にインストールする
+#
+# 2つのやり方:
+#   ディスク全体   選んだディスクを全部消して WasabiOS だけにする
+#   パーティション  あらかじめ空けておいたパーティションに入れる (元の Ubuntu などは残る)
+#
+# 確認なしで実行する (テスト用) には環境変数で指定する:
+#   WASABI_TARGET=/dev/sda WASABI_MODE=disk|part WASABI_USER=名前 WASABI_PASSWORD=パスワード
+#   WASABI_FULLNAME=表示名 WASABI_HOSTNAME=wasabi WASABI_EFI=/dev/sda1 (part のとき) WASABI_YES=1
+set -euo pipefail
+
+G=$'\e[1;32m'; Y=$'\e[1;33m'; R=$'\e[1;31m'; B=$'\e[1m'; N=$'\e[0m'
+say()  { printf '%s==>%s %s\n' "$G" "$N" "$*"; }
+warn() { printf '%s!%s %s\n' "$Y" "$N" "$*"; }
+die()  { printf '%s✗ %s%s\n' "$R" "$*" "$N" >&2; exit 1; }
+ask()  { local a; read -r -p "$1" a; echo "$a"; }
+
+LIVE_RO=/run/wasabi/ro          # ライブ起動のときの元のシステム (変更前のきれいな状態)
+T=/mnt/wasabi-target
+
+[ "$(id -u)" -eq 0 ] || exec sudo -E "$0" "$@"
+[ -d "$LIVE_RO/usr" ] || die "ライブ USB から起動したときだけ使えます"
+. /etc/wasabios/release
+
+cleanup() {
+  for m in dev/pts dev proc sys run boot/efi ""; do
+    mountpoint -q "$T/$m" 2>/dev/null && umount -lf "$T/$m" || true
+  done
+}
+trap cleanup EXIT
+
+# ライブ USB 自身はインストール先にしない
+live_disk=""
+media=$(findmnt -no SOURCE /run/wasabi/media 2>/dev/null || true)
+[ -n "$media" ] && live_disk=$(lsblk -no PKNAME "$media" 2>/dev/null || basename "$media")
+
+clear 2>/dev/null || true
+cat <<EOF
+${G}${B}
+   ${WASABIOS_NAME} ${WASABIOS_VERSION} インストーラー
+${N}
+  ライブ USB の WasabiOS を、このパソコンのディスクにインストールします。
+  インストールすると、ファイルや設定が保存されるようになり、USB なしで起動できます。
+
+EOF
+
+# ---- 1. インストール先 ----
+echo "${B}ディスク一覧${N}"
+lsblk -dpno NAME,SIZE,MODEL,TRAN -e 7,11 | grep -v "/dev/${live_disk:-none} " | sed 's/^/  /'
+echo
+
+MODE="${WASABI_MODE:-}"
+if [ -z "$MODE" ]; then
+  echo "  1) ディスク全体を使う  (中身はすべて消えます)"
+  echo "  2) パーティションを選ぶ (他の OS を残す。先に「ディスク」アプリや GParted で空けておく)"
+  case "$(ask '番号を選んでください [1/2]: ')" in
+    1) MODE=disk ;; 2) MODE=part ;; *) die "中止しました" ;;
+  esac
+fi
+
+TARGET="${WASABI_TARGET:-}"
+if [ "$MODE" = disk ]; then
+  [ -n "$TARGET" ] || TARGET=$(ask "インストールするディスク (例: /dev/sda): ")
+  [ -b "$TARGET" ] && [ "$(lsblk -dno TYPE "$TARGET")" = disk ] || die "$TARGET はディスクではありません"
+  [ "$(basename "$TARGET")" != "$live_disk" ] || die "それはライブ USB 自身です"
+else
+  echo "${B}パーティション一覧${N}"
+  lsblk -pno NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT -e 7,11 | sed 's/^/  /'
+  echo
+  [ -n "$TARGET" ] || TARGET=$(ask "WasabiOS を入れるパーティション (例: /dev/sda3): ")
+  [ -b "$TARGET" ] && [ "$(lsblk -dno TYPE "$TARGET")" = part ] || die "$TARGET はパーティションではありません"
+  ! findmnt -rno SOURCE | grep -qx "$TARGET" || die "$TARGET は使用中です"
+  disk=$(lsblk -dpno PKNAME "$TARGET")
+  EFI="${WASABI_EFI:-$(lsblk -pno NAME,PARTTYPE "$disk" | awk 'tolower($2)=="c12a7328-f81f-11d2-ba4b-00a0c93ec93b" {print $1; exit}')}"
+  [ -n "$EFI" ] || die "このディスクに EFI システムパーティションが見つかりません"
+fi
+size_gb=$(( $(lsblk -bdno SIZE "$TARGET") / 1024 / 1024 / 1024 ))
+[ "$size_gb" -ge 15 ] || die "容量が足りません (${size_gb}GB)。15GB 以上必要です"
+
+# ---- 2. ユーザー ----
+FULLNAME="${WASABI_FULLNAME:-}"
+USERNAME="${WASABI_USER:-}"
+PASSWORD="${WASABI_PASSWORD:-}"
+HOSTNAME_NEW="${WASABI_HOSTNAME:-}"
+[ -n "$FULLNAME" ] || FULLNAME=$(ask "あなたの名前 (表示用): ")
+while ! [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]]; do
+  USERNAME=$(ask "ユーザー名 (半角英小文字・数字): ")
+done
+while [ -z "$PASSWORD" ]; do
+  read -r -s -p "パスワード: " p1; echo
+  read -r -s -p "パスワード (もう一度): " p2; echo
+  [ -n "$p1" ] && [ "$p1" = "$p2" ] && PASSWORD="$p1" || warn "一致しませんでした"
+done
+[ -n "$HOSTNAME_NEW" ] || HOSTNAME_NEW=$(ask "このパソコンの名前 [wasabi]: ")
+HOSTNAME_NEW="${HOSTNAME_NEW:-wasabi}"
+
+# ---- 3. 最終確認 ----
+echo
+if [ "$MODE" = disk ]; then
+  echo "${R}${B}  $TARGET ($(lsblk -dno SIZE,MODEL "$TARGET")) の中身はすべて消えます。${N}"
+else
+  echo "${R}${B}  $TARGET の中身は消えます。${N} (EFI: $EFI はそのまま使います)"
+fi
+echo "  ユーザー: $USERNAME ($FULLNAME)   パソコン名: $HOSTNAME_NEW"
+if [ -z "${WASABI_YES:-}" ]; then
+  [ "$(ask '本当によければ yes と入力してください: ')" = yes ] || die "中止しました"
+fi
+
+# ---- 4. パーティションとフォーマット ----
+part() { # ディスク名とパーティション番号から /dev/sda1, /dev/nvme0n1p1 を作る
+  case "$1" in *[0-9]) echo "${1}p$2" ;; *) echo "$1$2" ;; esac
+}
+if [ "$MODE" = disk ]; then
+  say "パーティションを作成"
+  wipefs -a "$TARGET" >/dev/null
+  sgdisk --zap-all "$TARGET" >/dev/null
+  sgdisk -n 1:0:+1M   -t 1:ef02 -c 1:"BIOS boot" \
+         -n 2:0:+512M -t 2:ef00 -c 2:"EFI system" \
+         -n 3:0:0     -t 3:8300 -c 3:"WasabiOS" "$TARGET" >/dev/null
+  partprobe "$TARGET" 2>/dev/null || true
+  udevadm settle 2>/dev/null || sleep 2
+  EFI=$(part "$TARGET" 2)
+  ROOTPART=$(part "$TARGET" 3)
+  mkfs.vfat -F 32 -n EFI "$EFI" >/dev/null
+else
+  ROOTPART="$TARGET"
+fi
+say "フォーマット: $ROOTPART (ext4)"
+mkfs.ext4 -F -q -L WasabiOS "$ROOTPART"
+
+# ---- 5. コピー ----
+mkdir -p "$T"
+mount "$ROOTPART" "$T"
+say "システムをコピー (数分かかります)"
+rsync -aHAX --info=progress2 --exclude=/proc/* --exclude=/sys/* --exclude=/dev/* \
+  --exclude=/run/* --exclude=/tmp/* "$LIVE_RO/" "$T/"
+mkdir -p "$T/boot/efi"
+mount "$EFI" "$T/boot/efi"
+
+# ---- 6. 設定 ----
+say "設定"
+ROOT_UUID=$(blkid -s UUID -o value "$ROOTPART")
+EFI_UUID=$(blkid -s UUID -o value "$EFI")
+cat > "$T/etc/fstab" <<FSTAB
+# <ファイルシステム>                       <場所>      <種類> <オプション>          <dump> <pass>
+UUID=$ROOT_UUID  /           ext4   errors=remount-ro     0      1
+UUID=$EFI_UUID                            /boot/efi   vfat   umask=0077            0      1
+FSTAB
+echo "$HOSTNAME_NEW" > "$T/etc/hostname"
+printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n::1\tlocalhost ip6-localhost ip6-loopback\n' "$HOSTNAME_NEW" > "$T/etc/hosts"
+: > "$T/etc/machine-id"
+
+for m in dev dev/pts proc run; do mount --bind "/$m" "$T/$m"; done
+mount --rbind /sys "$T/sys"   # EFI の設定 (efivars) も見えるように
+mount --make-rslave "$T/sys"
+
+# ライブ専用の設定を外す
+LIVE_USER=$(cat /etc/wasabios/live-user 2>/dev/null || echo wasabi)
+chroot "$T" /bin/bash -e <<'CHROOT'
+rm -f /etc/sudoers.d/wasabios-live /etc/gdm3/custom.conf.d/wasabios-live.conf /etc/wasabios/live-user
+rm -f /usr/share/glib-2.0/schemas/95_wasabios-live.gschema.override
+glib-compile-schemas /usr/share/glib-2.0/schemas
+sed -i '/^AutomaticLogin/d' /etc/gdm3/custom.conf 2>/dev/null || true
+CHROOT
+chroot "$T" userdel -r "$LIVE_USER" 2>/dev/null || true
+
+# ユーザーを作る (名前やパスワードに記号があっても壊れないよう、引数と標準入力で渡す)
+groups=$(for g in sudo adm lpadmin plugdev audio video netdev; do
+  chroot "$T" getent group "$g" >/dev/null && printf '%s,' "$g"; done)
+chroot "$T" useradd -m -s /bin/bash -c "$FULLNAME" -G "${groups%,}" "$USERNAME"
+printf '%s:%s\n' "$USERNAME" "$PASSWORD" | chroot "$T" chpasswd
+# 名前とパスワードはここで決めたので、GNOME の初回セットアップ画面は出さない
+chroot "$T" su - "$USERNAME" -c 'mkdir -p ~/.config && touch ~/.config/gnome-initial-setup-done'
+
+# 起動の準備: 自作 initramfs と GRUB
+chroot "$T" update-initramfs -c -k all
+nvram=""
+[ -d /sys/firmware/efi ] || nvram="--no-nvram"   # BIOS で起動しているときは EFI の設定を書けない
+chroot "$T" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=WasabiOS $nvram
+
+if [ "$MODE" = disk ]; then
+  # Mac などは決まった場所 (/EFI/BOOT/BOOTX64.EFI) から起動するので、そこにも入れる。古い BIOS の PC 用にも入れる
+  chroot "$T" grub-install --target=x86_64-efi --efi-directory=/boot/efi --removable
+  chroot "$T" grub-install --target=i386-pc "$TARGET" 2>/dev/null || warn "BIOS 用の起動設定はスキップ"
+fi
+chroot "$T" apt-get purge -y -qq wasabios-installer >/dev/null 2>&1 || true
+chroot "$T" update-grub
+
+sync
+cleanup
+trap - EXIT
+echo
+say "インストール完了! USB を抜いて再起動してください。"
+echo "  Mac の場合: 起動時に option (⌥) キーを押して「WasabiOS」または「EFI Boot」を選びます。"

@@ -1,0 +1,11 @@
+Package: wasabios-boot
+Version: @VERSION@
+Architecture: amd64
+Maintainer: @MAINTAINER@
+Depends: cpio, gzip
+Section: admin
+Priority: optional
+Description: @OS_NAME@ boot environment (handmade init)
+ 起動直後に動く自作の init (wasabi-init) と、それを詰めた initramfs を作る
+ wasabi-mkinitramfs。Ubuntu の initramfs-tools の代わりに使われ、カーネルを
+ 入れたり更新したりすると自動で作り直される。

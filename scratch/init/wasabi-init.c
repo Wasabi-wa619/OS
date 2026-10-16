@@ -4,11 +4,13 @@
  *
  * やること:
  *   1. /proc /sys /dev などの特別なファイルシステムをマウント
- *   2. ホスト名の設定、ネットワーク (loopback) の準備
- *   3. /etc/rc.d/ の起動スクリプトを番号順に実行
- *   4. 各画面 (tty1〜tty3 とシリアル) でシェルを起動し、終了したら起動し直す
- *   5. 親のいなくなったプロセス (ゾンビ) を回収する
- *   6. poweroff / reboot の合図 (シグナル) が来たら、全プロセスを止めて電源を切る
+ *   2. カーネルのコマンドラインに root= か wasabi.live があれば、本物の OS (Ubuntu のユーザーランド) を
+ *      探してマウントし、systemd に起動を引き継ぐ (stage1.c)。ここで終わり。
+ *   3. 引き継ぐ OS が無いとき (シード版)・失敗したとき (レスキュー) は、この initramfs 自体を OS として動かす:
+ *      a. ホスト名の設定、/etc/rc.d/ の起動スクリプトを番号順に実行
+ *      b. 各画面 (tty1〜tty3 とシリアル) でシェルを起動し、終了したら起動し直す
+ *      c. 親のいなくなったプロセス (ゾンビ) を回収する
+ *      d. poweroff / reboot の合図 (シグナル) が来たら、全プロセスを止めて電源を切る
  *
  * シグナルの約束は BusyBox の poweroff / reboot / halt コマンドに合わせている:
  *   SIGUSR2 = 電源オフ, SIGTERM = 再起動, SIGUSR1 = 停止
@@ -32,6 +34,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "stage1.h"
+
 #define GREEN "\033[1;32m"
 #define DIM   "\033[2m"
 #define RESET "\033[0m"
@@ -44,7 +48,7 @@ static pid_t shell_pid[NTTY];
 static time_t last_start[NTTY];
 static volatile sig_atomic_t shutdown_request; /* 0=なし, それ以外=reboot() に渡す値 */
 
-static void say(const char *fmt, ...)
+void say(const char *fmt, ...)
 {
 	va_list ap;
 	FILE *con = fopen("/dev/console", "w");
@@ -239,9 +243,15 @@ int main(void)
 	umask(022);
 	mount_all();
 	banner();
+
+	/* 本物の OS があれば起動を引き継ぐ (成功したらここには戻らない) */
+	int r = stage1_boot();
+
 	set_hostname();
-	say("Running /etc/rc.d scripts");
-	run_rc();
+	if (r > 0) { /* シード版: この initramfs が OS */
+		say("Running /etc/rc.d scripts");
+		run_rc();
+	}
 	say("Ready. Alt+F1..F3 switches between consoles");
 
 	for (;;) {

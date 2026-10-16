@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install WasabiOS
+Name[ja]=WasabiOS をインストール
+Comment=Install WasabiOS to this computer's disk
+Comment[ja]=このパソコンのディスクに WasabiOS をインストールする
+Icon=wasabios-logo
+Exec=gnome-terminal --title=WasabiOS -- sudo /usr/sbin/wasabi-install
+Terminal=false
+Categories=System;

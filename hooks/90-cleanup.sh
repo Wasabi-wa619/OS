@@ -1,4 +1,4 @@
-# initramfs を作り直して(casper を含める)、キャッシュを掃除
+# 自作 initramfs (wasabi-mkinitramfs) を最終状態で作り直して、キャッシュを掃除
 update-initramfs -u -k all
 apt-get -y autoremove --purge
 apt-get clean

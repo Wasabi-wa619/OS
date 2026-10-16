@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # WasabiOS Scratch をゼロから組み立てる
 #   使い方: bash scratch/build.sh          (root 不要)
+#           bash scratch/build.sh --tools-only   自作 init と BusyBox だけ作る (build/tools/)
+#                                               → フル版 WasabiOS の起動パッケージ (wasabios-boot) に入る
 #
 #   1. Linux カーネルと BusyBox のソースをダウンロードして検証 (sha256)
-#   2. カーネルをビルド (x86_64_defconfig + kernel/wasabi.config、起動ロゴは自前)
+#   2. WasabiOS カーネル (kernel/build-kernel.sh で作る .deb。フル版と共通) を取り出す
 #   3. BusyBox を静的リンクでビルド (ls や sh などの基本コマンド)
 #   4. 自作の init (init/wasabi-init.c) をビルド
 #   5. rootfs/ と合わせて initramfs (メモリ上で動くルートファイルシステム) を作る
@@ -12,19 +14,22 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/versions.conf"
+TOOLS_ONLY=""
+[ "${1:-}" = "--tools-only" ] && TOOLS_ONLY=1
 
 B="$HERE/build"
 SRC="$B/src"
 OUT="$HERE/../out"
 JOBS="${JOBS:-$(nproc)}"
-LINUX_DIR="$B/linux-$LINUX_VERSION"
 BUSYBOX_DIR="$B/busybox-$BUSYBOX_VERSION"
 ROOT="$B/rootfs"
 ISO="$OUT/wasabios-scratch-$WASABI_VERSION-x86_64.iso"
 
 log() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 
-for cmd in gcc make bc flex bison cpio gzip grub-mkrescue xorriso; do
+NEED="gcc make bzip2"
+[ -n "$TOOLS_ONLY" ] || NEED="$NEED cpio gzip zstd depmod modprobe dpkg-deb grub-mkrescue xorriso"
+for cmd in $NEED; do
   command -v "$cmd" >/dev/null || { echo "$cmd がありません。'make -C scratch deps' を実行してください" >&2; exit 1; }
 done
 mkdir -p "$SRC" "$OUT"
@@ -40,27 +45,20 @@ fetch() { # fetch URL SHA256
   echo "$2  $file" | sha256sum -c --quiet || { echo "チェックサムが合いません: $file" >&2; exit 1; }
   echo "$file"
 }
-LINUX_TAR=$(fetch "$LINUX_URL" "$LINUX_SHA256" | tail -1)
 BUSYBOX_TAR=$(fetch "$BUSYBOX_URL" "$BUSYBOX_SHA256" | tail -1)
-
-[ -d "$LINUX_DIR" ] || { log "カーネルのソースを展開"; tar -C "$B" -xf "$LINUX_TAR"; }
 [ -d "$BUSYBOX_DIR" ] || { log "BusyBox のソースを展開"; tar -C "$B" -xf "$BUSYBOX_TAR"; }
 
-# ---- 2. カーネル ----------------------------------------------------------
-log "Linux $LINUX_VERSION をビルド (初回は 10〜30 分)"
-cp "$HERE/kernel/logo_linux_clut224.ppm" "$LINUX_DIR/drivers/video/logo/logo_linux_clut224.ppm"
-make -C "$LINUX_DIR" -s x86_64_defconfig
-"$LINUX_DIR/scripts/kconfig/merge_config.sh" -m -O "$LINUX_DIR" \
-  "$LINUX_DIR/.config" "$HERE/kernel/wasabi.config" >/dev/null
-make -C "$LINUX_DIR" -s olddefconfig
-# 指定したのに入らなかった設定があれば知らせる
-while IFS= read -r line; do
-  case "$line" in
-    CONFIG_*=*|"# CONFIG_"*" is not set") grep -qx "$line" "$LINUX_DIR/.config" || echo "  (注意) 反映できなかった設定: $line";;
-  esac
-done < "$HERE/kernel/wasabi.config"
-make -C "$LINUX_DIR" -s -j"$JOBS" bzImage
-KERNEL="$LINUX_DIR/arch/x86/boot/bzImage"
+# ---- 2. カーネル (フル版と同じ WasabiOS カーネル) ------------------------------
+if [ -z "$TOOLS_ONLY" ]; then
+if ! ls "$OUT"/kernel/linux-image-*.deb >/dev/null 2>&1; then
+  bash "$HERE/kernel/build-kernel.sh"
+fi
+log "WasabiOS カーネルのパッケージを展開"
+rm -rf "$B/kernel-pkg"
+dpkg-deb -x "$(ls "$OUT"/kernel/linux-image-*.deb | head -1)" "$B/kernel-pkg"
+KERNEL=$(ls "$B"/kernel-pkg/boot/vmlinuz-* | head -1)
+KVER=${KERNEL##*/vmlinuz-}
+fi
 
 # ---- 3. BusyBox -----------------------------------------------------------
 log "BusyBox $BUSYBOX_VERSION をビルド"
@@ -79,12 +77,20 @@ make -C "$BUSYBOX_DIR" -s -j"$JOBS" busybox 2>&1 | grep -v "warning: Using '.*' 
 # ---- 4. 自作 init ---------------------------------------------------------
 log "wasabi-init (自作の PID 1) をビルド"
 mkdir -p "$B/init"
-gcc -static -O2 -Wall -Wextra -o "$B/init/wasabi-init" "$HERE/init/wasabi-init.c"
+gcc -static -O2 -Wall -Wextra -o "$B/init/wasabi-init" "$HERE/init/wasabi-init.c" "$HERE/init/stage1.c"
+
+if [ -n "$TOOLS_ONLY" ]; then
+  mkdir -p "$B/tools"
+  install -m755 "$B/init/wasabi-init" "$B/tools/wasabi-init"
+  install -m755 "$BUSYBOX_DIR/busybox" "$B/tools/busybox"
+  log "完成: $B/tools/ (wasabi-init, busybox)"
+  exit 0
+fi
 
 # ---- 5. ルートファイルシステム (initramfs) --------------------------------
 log "ルートファイルシステムを組み立て"
 rm -rf "$ROOT"
-mkdir -p "$ROOT"/{bin,sbin,usr/bin,usr/sbin,dev,proc,sys,run,tmp,root,etc}
+mkdir -p "$ROOT"/{bin,sbin,usr/bin,usr/sbin,dev,proc,sys,run,tmp,root,etc,lib/modules}
 cp -a "$HERE/rootfs/." "$ROOT/"
 install -m755 "$BUSYBOX_DIR/busybox" "$ROOT/bin/busybox"
 # busybox の各コマンド (ls, cp, vi ...) をリンクとして作る
@@ -95,6 +101,26 @@ install -m755 "$B/init/wasabi-init" "$ROOT/init"   # カーネルは initramfs �
 ln -sf /init "$ROOT/sbin/init"
 chmod 700 "$ROOT/root"
 chmod 1777 "$ROOT/tmp"
+
+# ドライバー (カーネルモジュール): modules.list に書いたものと、それが必要とするものだけ持っていく
+log "ドライバーを選んで入れる (modules.list)"
+MODS="$B/kernel-pkg/lib/modules/$KVER"
+depmod -b "$B/kernel-pkg" "$KVER"
+grep -vE '^\s*(#|$)' "$HERE/modules.list" | while read -r m; do
+  modprobe -d "$B/kernel-pkg" -S "$KVER" --show-depends "$m" 2>/dev/null | awk '$1=="insmod" {print $2}'
+done | sort -u | while read -r ko; do
+  rel=${ko#"$B/kernel-pkg/"}
+  mkdir -p "$ROOT/$(dirname "$rel")"
+  case "$ko" in
+    *.zst) zstd -q -d -f "$ko" -o "$ROOT/${rel%.zst}" ;;   # BusyBox の modprobe は圧縮されたものを読めない
+    *.xz)  xz -d -c "$ko" > "$ROOT/${rel%.xz}" ;;
+    *)     cp "$ko" "$ROOT/$rel" ;;
+  esac
+done
+cp "$MODS"/modules.order "$MODS"/modules.builtin* "$ROOT/lib/modules/$KVER/" 2>/dev/null || true
+depmod -b "$ROOT" "$KVER"
+grep -vE '^\s*(#|$)' "$HERE/modules.list" > "$ROOT/etc/modules"
+echo "  $(find "$ROOT/lib/modules" -name '*.ko' | wc -l) 個のモジュール"
 
 echo "WasabiOS Scratch $WASABI_VERSION ($WASABI_CODENAME)" > "$ROOT/etc/wasabios-release"
 cat > "$ROOT/etc/os-release" <<REL

@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+# Ubuntu の update-initramfs を退避し、wasabi-mkinitramfs を呼ぶものに置き換える
+if [ "$1" = install ] || [ "$1" = upgrade ]; then
+  dpkg-divert --package wasabios-boot --divert /usr/sbin/update-initramfs.distrib \
+    --rename --add /usr/sbin/update-initramfs
+fi

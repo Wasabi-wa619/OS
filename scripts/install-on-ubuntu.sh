@@ -13,7 +13,7 @@ fi
 
 # .deb を作るのに必要な道具
 command -v rsvg-convert >/dev/null || sudo apt-get install -y librsvg2-bin
-bash "$ROOT_DIR/scripts/build-debs.sh"
+bash "$ROOT_DIR/scripts/build-debs.sh" wasabios-base wasabios-desktop wasabios-mac
 
 pkgs=("$ROOT_DIR"/out/debs/wasabios-base_*.deb)
 if dpkg -s gnome-shell >/dev/null 2>&1; then
