@@ -74,7 +74,7 @@ REL
   find "$dst" -type f -exec chmod 644 {} +
   find "$dst/DEBIAN" -type f \( -name preinst -o -name postinst -o -name prerm -o -name postrm \) -exec chmod 755 {} +
   for x in "$dst"/usr/bin/* "$dst"/usr/sbin/* "$dst"/usr/lib/wasabios/* "$dst"/usr/lib/wasabios/initramfs/* \
-           "$dst"/etc/update-motd.d/* "$dst"/etc/kernel/*.d/*; do
+           "$dst"/etc/update-motd.d/* "$dst"/etc/kernel/*.d/* "$dst"/etc/grub.d/*; do
     [ -f "$x" ] && chmod 755 "$x"
   done
 

@@ -25,6 +25,13 @@ ${B}wasabi${N} - $WASABIOS_NAME のお助けコマンド
   wasabi clean     不要なファイルを掃除して空き容量を増やす
   wasabi doctor    よくある問題をチェックする (MacBook 向けの確認つき)
   wasabi theme     壁紙と色を $WASABIOS_NAME の標準に戻す (自分のユーザーだけ)
+
+  システムの状態を保存して戻す (SSD にインストールした $WASABIOS_NAME だけ)
+  wasabi snapshot              保存してある状態の一覧
+  wasabi snapshot save [名前]  今の状態を保存 (アップデートの前は自動で保存される)
+  wasabi rollback 番号         次の再起動でその状態に戻す (自分のファイルは残る)
+  wasabi powerwash             インストール直後の状態に戻す (自分のファイルは残る)
+  起動しないとき: 起動メニューの「WasabiOS を前の状態に戻す」
   wasabi version   $WASABIOS_NAME のバージョン
 EOF
 }
@@ -158,6 +165,15 @@ cmd_theme() {
   gsettings reset org.gnome.desktop.interface color-scheme
   ok "$WASABIOS_NAME の見た目にしました"
 }
+
+# 保存と復元は wasabios-boot の /usr/lib/wasabios/snapshot が担当
+snapshot_tool() {
+  [ -x /usr/lib/wasabios/snapshot ] || { bad "この機能は WasabiOS をインストールしたときだけ使えます"; return 1; }
+  /usr/lib/wasabios/snapshot "$@"
+}
+cmd_snapshot()  { snapshot_tool "${@:-list}"; }
+cmd_rollback()  { snapshot_tool rollback "$@"; }
+cmd_powerwash() { snapshot_tool powerwash; }
 
 sub="${1:-info}"; shift || true
 if declare -F "cmd_$sub" >/dev/null; then

@@ -9,6 +9,8 @@
  *       書き込み用の層 (overlay) を重ねる。WASABI-DATA というラベルの ext4 パーティションがあれば
  *       そこに変更を保存する (= 電源を切っても消えない)。無ければメモリ上 (tmpfs)。
  *   wasabi.toram     ライブのとき squashfs をメモリにコピーしてから起動 (USB を抜ける)
+ *   rootflags=...    ルートをマウントするときのオプション (btrfs の subvol=@ など)
+ *   wasabi.rollback= 前の状態に戻す (restore.c)
  *   init=/path       引き継ぎ先 (既定は /sbin/init = systemd)
  *   rootwait=秒      デバイスが現れるのを待つ時間 (既定 30 秒)
  *
@@ -123,13 +125,38 @@ static const char *ROOT_TYPES[] = { "ext4", "btrfs", "xfs", NULL };
 static const char *LIVE_TYPES[] = { "iso9660", "vfat", "exfat", NULL };
 
 static int try_mount(const char *dev, const char *target, unsigned long flags,
-		     const char *const types[])
+		     const char *const types[], const char *data)
 {
 	mkdir(target, 0755);
 	for (int i = 0; types[i]; i++)
-		if (mount(dev, target, types[i], flags, NULL) == 0)
+		if (mount(dev, target, types[i], flags, data) == 0)
 			return 0;
 	return -1;
+}
+
+/* initramfs に入れたドライバー (/etc/modules。btrfs など) を読み込む */
+static void load_modules(void)
+{
+	FILE *f = fopen("/etc/modules", "r");
+	if (!f)
+		return;
+	char m[128];
+	while (fgets(m, sizeof(m), f)) {
+		m[strcspn(m, "\n")] = '\0';
+		if (!m[0] || m[0] == '#')
+			continue;
+		pid_t pid = fork();
+		if (pid == 0) {
+			int null = open("/dev/null", O_WRONLY);
+			if (null >= 0)
+				dup2(null, 2);
+			execl("/bin/busybox", "modprobe", m, (char *)NULL);
+			_exit(127);
+		}
+		int st;
+		waitpid(pid, &st, 0);
+	}
+	fclose(f);
 }
 
 static int rootwait_seconds(void)
@@ -195,7 +222,7 @@ static int find_live_media(char *found, size_t len)
 			continue;
 		char dev[300];
 		snprintf(dev, sizeof(dev), "/dev/%s", e->d_name);
-		if (try_mount(dev, LIVE_DIR "/media", MS_RDONLY, LIVE_TYPES) < 0)
+		if (try_mount(dev, LIVE_DIR "/media", MS_RDONLY, LIVE_TYPES, NULL) < 0)
 			continue;
 		if (access(LIVE_DIR "/media/" SQUASHFS_PATH, R_OK) == 0) {
 			snprintf(found, len, "%s", dev);
@@ -271,8 +298,19 @@ static int setup_live(void)
 }
 
 /* ---- インストール済みの OS ---- */
-static int setup_installed(const char *spec)
+static int setup_installed(const char *rootspec)
 {
+	/* param() の戻り値は使い回しのバッファなので、先に全部コピーしておく */
+	char spec[256], rootflags[256] = "", rollback[256] = "";
+	snprintf(spec, sizeof(spec), "%s", rootspec);
+	const char *v;
+	if ((v = param("rootflags")))
+		snprintf(rootflags, sizeof(rootflags), "%s", v);
+	int has_rollback = (v = param("wasabi.rollback")) != NULL;
+	if (has_rollback)
+		snprintf(rollback, sizeof(rollback), "%s", v);
+	unsigned long flags = param("rw") ? 0 : MS_RDONLY; /* systemd があとで書き込み可能にする */
+
 	char dev[128];
 	int wait = rootwait_seconds();
 	say("Waiting for root device %s...", spec);
@@ -283,8 +321,11 @@ static int setup_installed(const char *spec)
 		}
 		usleep(500000);
 	}
-	unsigned long flags = param("rw") ? 0 : MS_RDONLY; /* systemd があとで書き込み可能にする */
-	if (try_mount(dev, NEWROOT, flags, ROOT_TYPES) < 0) {
+
+	/* 前の状態に戻す依頼があれば、ここで戻して再起動する (restore.c) */
+	restore_check(dev, has_rollback ? rollback : NULL);
+
+	if (try_mount(dev, NEWROOT, flags, ROOT_TYPES, rootflags[0] ? rootflags : NULL) < 0) {
 		say("Could not mount %s: %s", dev, strerror(errno));
 		return -1;
 	}
@@ -372,12 +413,17 @@ int stage1_boot(void)
 	if (!live && !root)
 		return 1; /* 何も指定が無い = この initramfs 自体が OS (レスキュー/シード) */
 
+	load_modules();
+
 	char init[256] = "/sbin/init";
 	const char *i = param("init");
 	if (i && *i)
 		snprintf(init, sizeof(init), "%s", i);
 
-	int r = live ? setup_live() : setup_installed(root);
+	char rootcopy[256] = "";
+	if (root)
+		snprintf(rootcopy, sizeof(rootcopy), "%s", root);
+	int r = live ? setup_live() : setup_installed(rootcopy);
 	if (r == 0) {
 		say("Starting %s", init);
 		switch_root(init);

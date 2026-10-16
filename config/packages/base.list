@@ -25,3 +25,4 @@ os-prober
 rsync
 gdisk
 dosfstools
+btrfs-progs

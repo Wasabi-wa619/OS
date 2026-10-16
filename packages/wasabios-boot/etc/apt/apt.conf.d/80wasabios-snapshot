@@ -1,0 +1,3 @@
+// アップデートやアプリのインストールの直前に、システムの状態を自動で保存する
+// (戻すとき: wasabi rollback)
+DPkg::Pre-Invoke { "if [ -x /usr/lib/wasabios/snapshot ]; then /usr/lib/wasabios/snapshot auto || true; fi"; };

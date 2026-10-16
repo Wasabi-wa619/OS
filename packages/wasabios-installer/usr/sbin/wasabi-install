@@ -24,7 +24,7 @@ T=/mnt/wasabi-target
 . /etc/wasabios/release
 
 cleanup() {
-  for m in dev/pts dev proc sys run boot/efi ""; do
+  for m in dev/pts dev proc sys run boot/efi home .snapshots ""; do
     mountpoint -q "$T/$m" 2>/dev/null && umount -lf "$T/$m" || true
   done
 }
@@ -126,12 +126,23 @@ if [ "$MODE" = disk ]; then
 else
   ROOTPART="$TARGET"
 fi
-say "フォーマット: $ROOTPART (ext4)"
-mkfs.ext4 -F -q -L WasabiOS "$ROOTPART"
-
-# ---- 5. コピー ----
+say "フォーマット: $ROOTPART (btrfs)"
+# btrfs: システム (@)・自分のファイル (@home)・保存した状態 (@snapshots) を分けて作る。
+# 「前の状態に戻す」ときは @ だけを入れ替えるので、@home のファイルは消えない
+mkfs.btrfs -f -q -L WasabiOS "$ROOTPART"
+OPTS="noatime,compress=zstd:1"
 mkdir -p "$T"
 mount "$ROOTPART" "$T"
+btrfs subvolume create "$T/@" >/dev/null
+btrfs subvolume create "$T/@home" >/dev/null
+btrfs subvolume create "$T/@snapshots" >/dev/null
+umount "$T"
+mount -o "subvol=@,$OPTS" "$ROOTPART" "$T"
+mkdir -p "$T/home" "$T/.snapshots"
+mount -o "subvol=@home,$OPTS" "$ROOTPART" "$T/home"
+mount -o "subvol=@snapshots,$OPTS" "$ROOTPART" "$T/.snapshots"
+
+# ---- 5. コピー ----
 say "システムをコピー (数分かかります)"
 rsync -aHAX --info=progress2 --exclude=/proc/* --exclude=/sys/* --exclude=/dev/* \
   --exclude=/run/* --exclude=/tmp/* "$LIVE_RO/" "$T/"
@@ -143,9 +154,11 @@ say "設定"
 ROOT_UUID=$(blkid -s UUID -o value "$ROOTPART")
 EFI_UUID=$(blkid -s UUID -o value "$EFI")
 cat > "$T/etc/fstab" <<FSTAB
-# <ファイルシステム>                       <場所>      <種類> <オプション>          <dump> <pass>
-UUID=$ROOT_UUID  /           ext4   errors=remount-ro     0      1
-UUID=$EFI_UUID                            /boot/efi   vfat   umask=0077            0      1
+# <ファイルシステム>                       <場所>        <種類> <オプション>                 <dump> <pass>
+UUID=$ROOT_UUID  /             btrfs  subvol=@,$OPTS             0      0
+UUID=$ROOT_UUID  /home         btrfs  subvol=@home,$OPTS         0      0
+UUID=$ROOT_UUID  /.snapshots   btrfs  subvol=@snapshots,$OPTS    0      0
+UUID=$EFI_UUID                            /boot/efi     vfat   umask=0077                   0      1
 FSTAB
 echo "$HOSTNAME_NEW" > "$T/etc/hostname"
 printf '127.0.0.1\tlocalhost\n127.0.1.1\t%s\n::1\tlocalhost ip6-localhost ip6-loopback\n' "$HOSTNAME_NEW" > "$T/etc/hosts"
@@ -190,6 +203,10 @@ if [ "$MODE" = disk ]; then
 fi
 chroot "$T" apt-get purge -y -qq wasabios-installer >/dev/null 2>&1 || true
 chroot "$T" update-grub
+
+# インストール直後の状態を保存しておく (パワーウォッシュ・「前の状態に戻す」で使う)
+say "インストール直後の状態を保存"
+btrfs subvolume snapshot -r "$T" "$T/.snapshots/factory" >/dev/null
 
 sync
 cleanup

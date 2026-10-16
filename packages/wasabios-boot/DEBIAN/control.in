@@ -2,7 +2,7 @@ Package: wasabios-boot
 Version: @VERSION@
 Architecture: amd64
 Maintainer: @MAINTAINER@
-Depends: cpio, gzip
+Depends: cpio, gzip, kmod, zstd, btrfs-progs
 Section: admin
 Priority: optional
 Description: @OS_NAME@ boot environment (handmade init)

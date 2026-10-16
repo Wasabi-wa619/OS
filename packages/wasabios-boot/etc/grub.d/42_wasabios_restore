@@ -1,0 +1,28 @@
+#!/bin/sh
+# 起動メニューに「WasabiOS を前の状態に戻す」を出す (ルートが btrfs のときだけ)
+# 選ぶと wasabi-init が保存してある状態の一覧を出す (scratch/init/restore.c)
+set -e
+. /usr/share/grub/grub-mkconfig_lib
+
+[ "$(stat -f -c %T /)" = btrfs ] || exit 0
+kernel=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1)
+[ -n "$kernel" ] || exit 0
+ver=${kernel#/boot/vmlinuz-}
+initrd=/boot/initrd.img-$ver
+[ -e "$initrd" ] || exit 0
+
+device=$(${grub_probe} --target=device /)
+uuid=$(${grub_probe} --target=fs_uuid /)
+subvol=$(findmnt -no FSROOT / | sed 's|^/||')
+kpath=$(make_system_path_relative_to_its_root "$kernel")
+ipath=$(make_system_path_relative_to_its_root "$initrd")
+
+echo "WasabiOS の復元メニューを追加: $ver" >&2
+cat <<ENTRY
+menuentry 'WasabiOS を前の状態に戻す (Restore)' --class wasabios {
+$(prepare_grub_to_access_device "$device" | sed 's/^/\t/')
+	echo 'WasabiOS Restore ...'
+	linux	$kpath root=UUID=$uuid ro rootflags=subvol=$subvol wasabi.rollback=menu loglevel=5
+	initrd	$ipath
+}
+ENTRY

@@ -11,4 +11,10 @@ void say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
  */
 int stage1_boot(void);
 
+/*
+ * restore.c: ルートが btrfs なら「前の状態に戻す」を処理する。how は wasabi.rollback= の値 (無ければ NULL)。
+ * 戻したときは再起動するので戻らない。何もしなかったときは 0。
+ */
+int restore_check(const char *dev, const char *how);
+
 #endif

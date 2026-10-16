@@ -25,6 +25,26 @@ echo "$WASABIOS_NAME $WASABIOS_VERSION ($WASABIOS_CODENAME)" > "$tmp/etc/wasabio
 printf 'root:x:0:0:root:/root:/bin/sh\n' > "$tmp/etc/passwd"
 printf 'export PS1="(rescue) # "\nexport PATH=/bin:/sbin:/usr/bin:/usr/sbin\n' > "$tmp/etc/profile"
 
+# ドライバー: /etc/wasabios/initramfs-modules に書いたものと、それが必要とするもの
+MODLIST=/etc/wasabios/initramfs-modules
+if [ -f "$MODLIST" ] && [ -d "/lib/modules/$ver" ]; then
+  for m in $(grep -vE '^\s*(#|$)' "$MODLIST"); do
+    modprobe -S "$ver" --show-depends "$m" 2>/dev/null | awk '$1=="insmod" {print $2}'
+  done | sort -u | while read -r ko; do
+    rel="lib/modules/$ver/${ko#*/lib/modules/$ver/}"
+    mkdir -p "$tmp/$(dirname "$rel")"
+    case "$ko" in   # BusyBox の modprobe は圧縮されたものを読めないので展開しておく
+      *.zst) zstd -q -d -f "$ko" -o "$tmp/${rel%.zst}" ;;
+      *.xz)  xz -d -c "$ko" > "$tmp/${rel%.xz}" ;;
+      *)     cp "$ko" "$tmp/$rel" ;;
+    esac
+  done
+  mkdir -p "$tmp/lib/modules/$ver"
+  cp /lib/modules/"$ver"/modules.order /lib/modules/"$ver"/modules.builtin* "$tmp/lib/modules/$ver/" 2>/dev/null || true
+  depmod -b "$tmp" "$ver"
+  grep -vE '^\s*(#|$)' "$MODLIST" > "$tmp/etc/modules"
+fi
+
 (cd "$tmp" && find . -print0 | sort -z | cpio --null -o -H newc -R 0:0 --quiet) | gzip -9 > "$out.new"
 mv "$out.new" "$out"
 echo "wasabi-mkinitramfs: $out"

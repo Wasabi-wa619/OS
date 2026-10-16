@@ -1,0 +1,155 @@
+#!/bin/bash
+# WasabiOS のシステムの状態を保存・一覧・戻す (wasabi snapshot / rollback / powerwash の本体)
+#
+# システム (@) は btrfs のサブボリュームなので、スナップショットは一瞬で作れて容量もほとんど使わない。
+# 自分のファイル (/home = @home) は別なので、戻しても消えない。
+# 戻すのは再起動したとき、OS が起動する前に wasabi-init が行う (scratch/init/restore.c)。
+set -euo pipefail
+
+SNAP=/.snapshots
+REQUEST=$SNAP/.rollback-request
+KEEP_AUTO=5
+
+G=$'\e[1;32m'; Y=$'\e[1;33m'; R=$'\e[1;31m'; B=$'\e[1m'; N=$'\e[0m'
+[ -t 1 ] || { G=; Y=; R=; B=; N=; }
+die() { printf '%s✗ %s%s\n' "$R" "$*" "$N" >&2; exit 1; }
+
+supported() {
+  [ "$(stat -f -c %T /)" = btrfs ] && mountpoint -q "$SNAP"
+}
+need_supported() {
+  supported || die "この機能は WasabiOS を SSD にインストールしたとき (btrfs) だけ使えます"
+}
+need_root() {
+  [ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+}
+
+pretty() { # 2026-10-17_031000_label → 2026-10-17 03:10  label
+  local n=$1
+  if [ "$n" = factory ]; then echo "インストール直後の状態 (パワーウォッシュ用)"; return; fi
+  if [[ $n =~ ^([0-9-]{10})_([0-9]{2})([0-9]{2})[0-9]{2}_(.*)$ ]]; then
+    echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]}  ${BASH_REMATCH[4]//-/ }"
+  else
+    echo "$n"
+  fi
+}
+
+snapshots() { # 新しい順。factory は最後
+  find "$SNAP" -mindepth 1 -maxdepth 1 -type d ! -name 'factory' ! -name '.*' -printf '%f\n' | sort -r
+  [ -d "$SNAP/factory" ] && echo factory
+  return 0
+}
+
+cmd_list() {
+  need_supported
+  echo "${B}保存してあるシステムの状態${N}  (戻す: wasabi rollback 番号)"
+  local i=0
+  while read -r n; do
+    i=$((i + 1))
+    printf '  %2d) %s\n' "$i" "$(pretty "$n")"
+  done < <(snapshots)
+  [ "$i" -gt 0 ] || echo "  (まだありません。wasabi snapshot save で保存できます)"
+  if [ -f "$REQUEST" ]; then
+    echo; echo "${Y}次に再起動したとき「$(pretty "$(cat "$REQUEST")")」に戻ります${N} (やめる: wasabi rollback cancel)"
+  fi
+  return 0
+}
+
+cmd_save() {
+  need_root "save" "$@"
+  need_supported
+  local label="${1:-manual}"
+  label=$(echo "$label" | tr -c 'A-Za-z0-9_-' '-' | sed 's/-*$//')
+  local name; name="$(date +%Y-%m-%d_%H%M%S)_${label:-manual}"
+  btrfs subvolume snapshot -r / "$SNAP/$name" >/dev/null
+  echo "${G}✓${N} 保存しました: $(pretty "$name")"
+}
+
+# apt でパッケージを入れたり更新したりする直前に自動で呼ばれる (/etc/apt/apt.conf.d/80wasabios-snapshot)
+cmd_auto() {
+  supported || exit 0
+  [ "$(id -u)" -eq 0 ] || exit 0
+  # 1回の apt で何度も呼ばれるので、10分以内に保存していたら作らない
+  local last; last=$(find "$SNAP" -mindepth 1 -maxdepth 1 -name '*_before-update' -mmin -10 | head -1)
+  [ -z "$last" ] || exit 0
+  local name; name="$(date +%Y-%m-%d_%H%M%S)_before-update"
+  btrfs subvolume snapshot -r / "$SNAP/$name" >/dev/null && echo "WasabiOS: 更新の前の状態を保存しました ($name)"
+  # 自動のものは新しい $KEEP_AUTO 個だけ残す
+  find "$SNAP" -mindepth 1 -maxdepth 1 -name '*_before-update' -printf '%f\n' | sort -r | tail -n +$((KEEP_AUTO + 1)) |
+    while read -r old; do btrfs subvolume delete "$SNAP/$old" >/dev/null || true; done
+  exit 0
+}
+
+pick() { # 番号か名前から名前へ
+  local want=$1
+  if [[ $want =~ ^[0-9]+$ ]]; then
+    snapshots | sed -n "${want}p"
+  elif [ -d "$SNAP/$want" ]; then
+    echo "$want"
+  fi
+}
+
+cmd_delete() {
+  need_root "delete" "$@"
+  need_supported
+  local name; name=$(pick "${1:-}")
+  [ -n "$name" ] || die "番号か名前を指定してください (wasabi snapshot で一覧)"
+  [ "$name" != factory ] || die "インストール直後の状態は消せません"
+  btrfs subvolume delete "$SNAP/$name" >/dev/null
+  echo "${G}✓${N} 削除しました: $(pretty "$name")"
+}
+
+cmd_rollback() {
+  need_root "rollback" "$@"
+  need_supported
+  if [ "${1:-}" = cancel ]; then
+    rm -f "$REQUEST"; echo "${G}✓${N} 取り消しました"; return
+  fi
+  local name; name=$(pick "${1:-}")
+  [ -n "$name" ] || { cmd_list; echo; die "戻す先の番号を指定してください (例: wasabi rollback 1)"; }
+  echo "$name" > "$REQUEST"
+  sync
+  echo "${G}✓${N} 次に再起動したとき「$(pretty "$name")」に戻します。"
+  echo "  自分のファイル (/home) はそのまま残ります。今のシステムも念のため残しておきます。"
+  echo "  今すぐ再起動: sudo reboot   /   やめる: wasabi rollback cancel"
+}
+
+cmd_powerwash() {
+  need_root "powerwash" "$@"
+  need_supported
+  [ -d "$SNAP/factory" ] || die "インストール直後の状態が見つかりません"
+  echo "${R}${B}システムをインストール直後の状態に戻します (パワーウォッシュ)。${N}"
+  echo "入れたアプリや設定は消えます。自分のファイル (/home) は残ります。"
+  local a; read -r -p "よければ yes と入力: " a
+  [ "$a" = yes ] || die "中止しました"
+  cmd_rollback factory
+}
+
+# 戻したあとに残っている古いシステム (@broken-*) を消す
+cmd_clean() {
+  need_root "clean" "$@"
+  need_supported
+  local dev top
+  dev=$(findmnt -no SOURCE / | sed 's/\[.*//')
+  top=$(mktemp -d)
+  mount -o subvolid=5 "$dev" "$top"
+  local n=0
+  for d in "$top"/@broken-*; do
+    [ -d "$d" ] || continue
+    btrfs subvolume delete "$d" >/dev/null && n=$((n + 1))
+  done
+  umount "$top"; rmdir "$top"
+  echo "${G}✓${N} 戻す前の古いシステムを $n 個消しました"
+}
+
+sub="${1:-list}"; shift || true
+case "$sub" in
+  list|"") cmd_list ;;
+  save) cmd_save "$@" ;;
+  auto) cmd_auto ;;
+  delete) cmd_delete "$@" ;;
+  rollback) cmd_rollback "$@" ;;
+  powerwash) cmd_powerwash ;;
+  clean) cmd_clean ;;
+  *) die "使い方: wasabi snapshot [list|save 名前|delete 番号|clean]   wasabi rollback 番号   wasabi powerwash" ;;
+esac

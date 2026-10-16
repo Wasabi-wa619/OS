@@ -1,2 +1,4 @@
 /etc/default/grub.d/wasabios.cfg
 /etc/apt/preferences.d/wasabios-kernel
+/etc/wasabios/initramfs-modules
+/etc/apt/apt.conf.d/80wasabios-snapshot

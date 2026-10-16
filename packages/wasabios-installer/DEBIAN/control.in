@@ -2,7 +2,7 @@ Package: wasabios-installer
 Version: @VERSION@
 Architecture: all
 Maintainer: @MAINTAINER@
-Depends: wasabios-boot (>= @MINVERSION@), rsync, gdisk, dosfstools, e2fsprogs, parted, grub-efi-amd64-bin, grub-pc-bin, efibootmgr, os-prober, util-linux
+Depends: wasabios-boot (>= @MINVERSION@), btrfs-progs, rsync, gdisk, dosfstools, e2fsprogs, parted, grub-efi-amd64-bin, grub-pc-bin, efibootmgr, os-prober, util-linux
 Section: admin
 Priority: optional
 Description: @OS_NAME@ installer

@@ -77,7 +77,7 @@ make -C "$BUSYBOX_DIR" -s -j"$JOBS" busybox 2>&1 | grep -v "warning: Using '.*' 
 # ---- 4. 自作 init ---------------------------------------------------------
 log "wasabi-init (自作の PID 1) をビルド"
 mkdir -p "$B/init"
-gcc -static -O2 -Wall -Wextra -o "$B/init/wasabi-init" "$HERE/init/wasabi-init.c" "$HERE/init/stage1.c"
+gcc -static -O2 -Wall -Wextra -o "$B/init/wasabi-init" "$HERE/init/wasabi-init.c" "$HERE/init/stage1.c" "$HERE/init/restore.c"
 
 if [ -n "$TOOLS_ONLY" ]; then
   mkdir -p "$B/tools"
