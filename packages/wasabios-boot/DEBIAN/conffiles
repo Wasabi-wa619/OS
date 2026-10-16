@@ -1,1 +1,2 @@
 /etc/default/grub.d/wasabios.cfg
+/etc/apt/preferences.d/wasabios-kernel

@@ -1,0 +1,6 @@
+Explanation: WasabiOS は自前ビルドのカーネルを使うので、Ubuntu のカーネル本体とヘッダーは入れない
+Explanation: (DKMS の「おすすめ」や linux-generic などで引っぱられないように)。
+Explanation: linux-libc-dev (プログラムをコンパイルするためのヘッダー) や linux-firmware は対象外。
+Package: linux-image-* linux-headers-* linux-modules-* linux-generic* linux-signed-* linux-virtual*
+Pin: release o=Ubuntu
+Pin-Priority: -1
