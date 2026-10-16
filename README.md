@@ -159,6 +159,12 @@ ISO のビルドの流れ: WasabiOS カーネルを .deb にビルド (`scratch/
 → `squashfs` に圧縮 → GRUB で BIOS / UEFI 両対応の ISO にする。
 起動すると自作の `wasabi-init` が ISO の中の `wasabios/root.squashfs` を見つけ、書き込み用の層を重ねて systemd に引き継ぎます。
 
+## 注意: カーネルの更新
+
+アプリや GNOME などは `wasabi update` (= apt) で Ubuntu から更新が届きます。
+**カーネルだけは WasabiOS 自前なので、セキュリティ修正を自分で取り込む必要があります。**
+新しいバージョンが出たら `scratch/versions.conf` を書き換えて作り直してください (`scratch/README.md`)。
+
 ## 次のステップのアイデア
 
 - **GUI のインストーラー**: いまはターミナルで質問に答える形
