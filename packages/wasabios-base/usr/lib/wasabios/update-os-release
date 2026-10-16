@@ -1,0 +1,27 @@
+#!/bin/sh
+# Ubuntu 本来の os-release (dpkg-divert で .distrib に退避してある) をもとに、
+# 表示名だけ (起動時のコンソールにも出るので英数字で) WasabiOS に変えた /usr/lib/os-release を作る。
+# ID=ubuntu や VERSION_ID はそのまま残すので、Ubuntu 向けのアプリやスクリプトは今まで通り動く。
+set -e
+SRC=/usr/lib/os-release.distrib
+DST=/usr/lib/os-release
+[ -f "$SRC" ] || exit 0
+. /etc/wasabios/release
+
+UBUNTU_PRETTY=$(. "$SRC"; echo "$PRETTY_NAME")
+TMP=$(mktemp)
+{
+  echo "PRETTY_NAME=\"$WASABIOS_NAME $WASABIOS_VERSION ($UBUNTU_PRETTY)\""
+  echo "NAME=\"$WASABIOS_NAME\""
+  grep -vE '^(PRETTY_NAME|NAME|VARIANT|VARIANT_ID|LOGO)=' "$SRC"
+  echo "VARIANT=\"$WASABIOS_NAME $WASABIOS_VERSION ($WASABIOS_CODENAME)\""
+  echo "VARIANT_ID=$WASABIOS_ID"
+  echo "LOGO=wasabios-logo"
+} > "$TMP"
+
+if cmp -s "$TMP" "$DST"; then
+  rm -f "$TMP"
+else
+  chmod 644 "$TMP"
+  mv "$TMP" "$DST"
+fi

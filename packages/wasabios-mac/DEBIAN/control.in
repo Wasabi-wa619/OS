@@ -1,0 +1,10 @@
+Package: wasabios-mac
+Version: @VERSION@
+Architecture: all
+Maintainer: @MAINTAINER@
+Depends: wasabios-base (= @VERSION@), mbpfan, lm-sensors
+Section: misc
+Priority: optional
+Description: @OS_NAME@ support for Intel MacBooks
+ 2012年前後の Intel MacBook 向けの追加設定。
+ ファン制御 (mbpfan) と温度センサー (lm-sensors) を入れます。

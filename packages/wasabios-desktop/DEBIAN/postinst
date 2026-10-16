@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+THEME=/usr/share/plymouth/themes/wasabios
+if [ "$1" = configure ]; then
+  # くるくる回るアニメーション等は Ubuntu の spinner テーマの画像を借りる
+  # (起動時は initramfs の中にこのテーマだけが入るので、リンクではなくコピーする)
+  for f in /usr/share/plymouth/themes/spinner/*.png; do
+    [ "$(basename "$f")" = watermark.png ] && continue
+    cp --remove-destination "$f" "$THEME/"
+  done
+  update-alternatives --install /usr/share/plymouth/themes/default.plymouth \
+    default.plymouth "$THEME/wasabios.plymouth" 200
+  # 起動画面は initramfs に入るので作り直す (ライブ ISO のビルド中は最後にまとめて行う)
+  if [ -z "${WASABIOS_SKIP_INITRAMFS:-}" ] && command -v update-initramfs >/dev/null; then
+    update-initramfs -u
+  fi
+fi

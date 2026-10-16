@@ -1,3 +1,5 @@
+# Ubuntu 標準デスクトップ (GNOME) と同じ構成
 ubuntu-desktop-minimal
+language-pack-gnome-ja
 fonts-noto-cjk
 ibus-mozc

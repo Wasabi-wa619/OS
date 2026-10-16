@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+# アンインストール時: Ubuntu の os-release を元に戻す
+# (自分が退避したときだけ。インストール失敗時に他人のファイルを消さないように)
+if [ "$1" = remove ] || [ "$1" = purge ] || [ "$1" = abort-install ] || [ "$1" = abort-upgrade ]; then
+  if [ "$(dpkg-divert --listpackage /usr/lib/os-release)" = wasabios-base ]; then
+    rm -f /usr/lib/os-release
+    dpkg-divert --package wasabios-base --divert /usr/lib/os-release.distrib \
+      --rename --remove /usr/lib/os-release
+  fi
+fi

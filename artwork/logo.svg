@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9ccc65"/>
+      <stop offset="1" stop-color="#2e7d32"/>
+    </linearGradient>
+  </defs>
+  <circle cx="128" cy="128" r="120" fill="url(#bg)"/>
+  <!-- わさびの葉 (ハート形) -->
+  <path d="M128 206 C 92 178, 56 150, 56 110 C 56 82, 76 64, 98 64 C 112 64, 122 72, 128 84
+           C 134 72, 144 64, 158 64 C 180 64, 200 82, 200 110 C 200 150, 164 178, 128 206 Z"
+        fill="#ffffff"/>
+  <!-- 葉脈 -->
+  <g fill="none" stroke="#43a047" stroke-width="6" stroke-linecap="round">
+    <path d="M128 92 L128 190"/>
+    <path d="M128 120 C 112 112, 98 104, 86 96"/>
+    <path d="M128 120 C 144 112, 158 104, 170 96"/>
+    <path d="M128 150 C 114 144, 100 136, 88 126"/>
+    <path d="M128 150 C 142 144, 156 136, 168 126"/>
+  </g>
+</svg>

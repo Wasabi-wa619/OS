@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+# Ubuntu の os-release を退避 (base-files の更新はこちらに入るようになる)
+if [ "$1" = install ] || [ "$1" = upgrade ]; then
+  dpkg-divert --package wasabios-base --divert /usr/lib/os-release.distrib \
+    --rename --add /usr/lib/os-release
+fi

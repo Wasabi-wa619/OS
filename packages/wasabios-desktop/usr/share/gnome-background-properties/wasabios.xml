@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
+<wallpapers>
+  <wallpaper deleted="false">
+    <name>WasabiOS</name>
+    <filename>/usr/share/backgrounds/wasabios/wasabios-default.svg</filename>
+    <filename-dark>/usr/share/backgrounds/wasabios/wasabios-default.svg</filename-dark>
+    <options>zoom</options>
+    <shade_type>solid</shade_type>
+    <pcolor>#0b2414</pcolor>
+    <scolor>#0b2414</scolor>
+  </wallpaper>
+</wallpapers>

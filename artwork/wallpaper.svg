@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="bg" cx="0.72" cy="0.3" r="1.0">
+      <stop offset="0" stop-color="#1d4a2a"/>
+      <stop offset="0.6" stop-color="#0b2414"/>
+      <stop offset="1" stop-color="#050f08"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9ccc65" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#9ccc65" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#9ccc65" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b5e20" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#050f08" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <!-- 流れる線 -->
+  <g fill="none" stroke="url(#fade)" stroke-linecap="round">
+    <path d="M-40 820 C 400 700, 760 900, 1160 780 S 1760 640, 1980 700" stroke-width="2.5" opacity="0.9"/>
+    <path d="M-40 850 C 420 740, 780 930, 1180 815 S 1770 680, 1980 735" stroke-width="1.5" opacity="0.6"/>
+    <path d="M-40 880 C 440 780, 800 960, 1200 850 S 1780 720, 1980 770" stroke-width="1" opacity="0.4"/>
+  </g>
+  <path d="M-40 900 C 460 810, 820 990, 1220 880 S 1790 760, 1980 800 L1980 1120 L-40 1120 Z" fill="url(#hill)"/>
+  <!-- わさびの葉 (線画) -->
+  <g transform="translate(1290 140) rotate(14) scale(2.1)" fill="none" stroke="#c5e1a5" stroke-width="1.6" stroke-linecap="round" opacity="0.22">
+    <path d="M128 206 C 92 178, 56 150, 56 110 C 56 82, 76 64, 98 64 C 112 64, 122 72, 128 84
+             C 134 72, 144 64, 158 64 C 180 64, 200 82, 200 110 C 200 150, 164 178, 128 206 Z"/>
+    <path d="M128 84 L128 230"/>
+    <path d="M128 118 C 110 108, 94 98, 80 86"/>
+    <path d="M128 118 C 146 108, 162 98, 176 86"/>
+    <path d="M128 150 C 110 142, 92 130, 74 116"/>
+    <path d="M128 150 C 146 142, 164 130, 182 116"/>
+    <path d="M128 180 C 114 174, 100 164, 88 152"/>
+    <path d="M128 180 C 142 174, 156 164, 168 152"/>
+  </g>
+</svg>

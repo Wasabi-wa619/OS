@@ -1,0 +1,30 @@
+# WasabiOS のデスクトップ既定値 (Ubuntu の 10_ubuntu-settings より後に読まれる)
+# 色を変えたいときは Yaru-sage を Yaru-blue / Yaru-viridian などに変える
+
+[org.gnome.desktop.background]
+picture-uri = 'file:///usr/share/backgrounds/wasabios/wasabios-default.svg'
+picture-uri-dark = 'file:///usr/share/backgrounds/wasabios/wasabios-default.svg'
+picture-options = 'zoom'
+primary-color = '#0b2414'
+
+[org.gnome.desktop.screensaver]
+picture-uri = 'file:///usr/share/backgrounds/wasabios/wasabios-default.svg'
+
+[org.gnome.desktop.interface]
+gtk-theme = 'Yaru-sage-dark'
+icon-theme = 'Yaru-sage'
+color-scheme = 'prefer-dark'
+
+[org.gnome.desktop.background:ubuntu]
+picture-uri = 'file:///usr/share/backgrounds/wasabios/wasabios-default.svg'
+picture-uri-dark = 'file:///usr/share/backgrounds/wasabios/wasabios-default.svg'
+picture-options = 'zoom'
+primary-color = '#0b2414'
+
+[org.gnome.desktop.screensaver:ubuntu]
+picture-uri = 'file:///usr/share/backgrounds/wasabios/wasabios-default.svg'
+
+[org.gnome.desktop.interface:ubuntu]
+gtk-theme = 'Yaru-sage-dark'
+icon-theme = 'Yaru-sage'
+color-scheme = 'prefer-dark'

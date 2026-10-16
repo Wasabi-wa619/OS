@@ -1,0 +1,10 @@
+Package: wasabios-base
+Version: @VERSION@
+Architecture: all
+Maintainer: @MAINTAINER@
+Depends: base-files, lsb-release
+Section: misc
+Priority: optional
+Description: @OS_NAME@ base system
+ Ubuntu をそのまま使いながら、@OS_NAME@ としての名前・ロゴと
+ wasabi コマンドを追加します。アンインストールすると Ubuntu に戻ります。

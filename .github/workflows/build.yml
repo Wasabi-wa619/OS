@@ -1,0 +1,98 @@
+# GitHub 上で自動ビルドする。
+# - .deb (独自パッケージ): main への push のたびに作る → Actions の実行結果の Artifacts から取れる
+# - ISO: Actions タブ → "Build" → "Run workflow" で手動実行したときと、v* タグを push したときに作る
+# - v0.1 のようなタグを push すると Releases に .deb と ISO を添付する
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      desktop:
+        description: "デスクトップ環境"
+        type: choice
+        options: [gnome, xfce, kde, none]
+        default: gnome
+      mac_support:
+        description: "MacBook 向けドライバーを入れる"
+        type: choice
+        options: ["yes", "no"]
+        default: "yes"
+
+permissions:
+  contents: write
+
+jobs:
+  debs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build .deb packages
+        run: |
+          sudo apt-get update && sudo apt-get install -y librsvg2-bin
+          bash ./scripts/build-debs.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs
+          path: out/debs/*.deb
+
+  iso:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debootstrap squashfs-tools xorriso mtools librsvg2-bin \
+            grub-common grub-pc-bin grub-efi-amd64-bin
+
+      - name: Build ISO
+        run: |
+          sudo DESKTOP="${{ inputs.desktop || 'gnome' }}" \
+               MAC_SUPPORT="${{ inputs.mac_support || 'yes' }}" \
+               bash ./scripts/build.sh
+
+      - name: Checksum
+        run: cd out && sha256sum *.iso | tee SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iso-${{ inputs.desktop || 'gnome' }}
+          path: |
+            out/*.iso
+            out/SHA256SUMS
+          compression-level: 0
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [debs, iso]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      # GitHub Releases は1ファイル 2GiB まで。超える ISO は分割して添付する
+      - name: Split large ISO
+        run: |
+          cd dist
+          for f in *.iso; do
+            if [ "$(stat -c %s "$f")" -gt 2000000000 ]; then
+              split -b 1900M -d "$f" "$f.part"
+              rm "$f"
+            fi
+          done
+          ls -la
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

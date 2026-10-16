@@ -1,0 +1,2 @@
+// Ubuntu のアップデートで os-release が更新されたら WasabiOS の名前を付け直す
+DPkg::Post-Invoke { "if [ -x /usr/lib/wasabios/update-os-release ]; then /usr/lib/wasabios/update-os-release || true; fi"; };

@@ -31,10 +31,15 @@ unmount_chroot() {
 }
 trap unmount_chroot EXIT
 
+# ---- 0. 独自パッケージ (.deb) ------------------------------------------
+log "独自パッケージをビルド"
+bash "$ROOT_DIR/scripts/build-debs.sh"
+
 # ---- 1. ベースシステム ---------------------------------------------------
 if [[ ! -f "$CHROOT/.debootstrap-done" ]]; then
   log "debootstrap: Ubuntu $BASE_SUITE ($ARCH) を展開"
-  rm -rf "$CHROOT"
+  unmount_chroot
+  rm -rf --one-file-system "$CHROOT"
   mkdir -p "$CHROOT"
   debootstrap --arch="$ARCH" --components=main,universe "$BASE_SUITE" "$CHROOT" "$BASE_MIRROR"
   touch "$CHROOT/.debootstrap-done"
@@ -60,14 +65,14 @@ chmod +x "$CHROOT/usr/sbin/policy-rc.d"
 # 設定・パッケージリスト・フックを chroot に渡す
 rm -rf "$CHROOT/tmp/build"
 mkdir -p "$CHROOT/tmp/build"
-cp -r "$ROOT_DIR/config" "$ROOT_DIR/hooks" "$CHROOT/tmp/build/"
+cp -r "$ROOT_DIR/config" "$ROOT_DIR/hooks" "$ROOT_DIR/out/debs" "$CHROOT/tmp/build/"
 
 for hook in "$ROOT_DIR"/hooks/*.sh; do
   name="$(basename "$hook")"
   log "hook: $name"
   chroot "$CHROOT" /usr/bin/env -i \
     HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-    DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 DESKTOP="$DESKTOP" BROWSER="$BROWSER" \
+    DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 DESKTOP="$DESKTOP" BROWSER="$BROWSER" MAC_SUPPORT="$MAC_SUPPORT" \
     /bin/bash -e "/tmp/build/hooks/$name"
 done
 
@@ -81,7 +86,7 @@ unmount_chroot
 
 # ---- 3. ISO イメージの作成 -----------------------------------------------
 log "ISO の中身を作成"
-rm -rf "$IMAGE"
+rm -rf --one-file-system "$IMAGE"
 mkdir -p "$IMAGE/casper" "$IMAGE/boot/grub" "$IMAGE/.disk" "$OUT"
 
 cp "$(ls -1 "$CHROOT"/boot/vmlinuz-* | sort -V | tail -1)" "$IMAGE/casper/vmlinuz"
@@ -102,3 +107,6 @@ grub-mkrescue -o "$ISO" "$IMAGE" -- -volid "${OS_ID^^}_${OS_VERSION//./_}"
 
 log "完成! $(du -h "$ISO" | cut -f1)  $ISO"
 echo "QEMU で試す: make run"
+
+# sudo で作ったファイルを普段のユーザーでも消せるように持ち主を合わせる
+chown -R "$(stat -c %u:%g "$ROOT_DIR")" "$OUT"

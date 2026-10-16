@@ -1,0 +1,11 @@
+Package: wasabios-desktop
+Version: @VERSION@
+Architecture: all
+Maintainer: @MAINTAINER@
+Depends: wasabios-base (= @VERSION@), plymouth-theme-spinner, librsvg2-common
+Recommends: yaru-theme-gtk, yaru-theme-icon
+Section: misc
+Priority: optional
+Description: @OS_NAME@ desktop look and feel
+ @OS_NAME@ の壁紙・テーマ色・起動画面。GNOME (Ubuntu 標準デスクトップ) 向け。
+ 自分で変更した設定はそのまま残ります。

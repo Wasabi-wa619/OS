@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="64" viewBox="0 0 300 64">
+  <g transform="scale(0.25)">
+    <circle cx="128" cy="128" r="120" fill="#7cb342"/>
+    <path d="M128 206 C 92 178, 56 150, 56 110 C 56 82, 76 64, 98 64 C 112 64, 122 72, 128 84
+             C 134 72, 144 64, 158 64 C 180 64, 200 82, 200 110 C 200 150, 164 178, 128 206 Z" fill="#fff"/>
+  </g>
+  <text x="76" y="44" font-family="Ubuntu, 'Noto Sans', 'DejaVu Sans', sans-serif" font-size="34" fill="#ffffff">Wasabi<tspan font-weight="bold">OS</tspan></text>
+</svg>

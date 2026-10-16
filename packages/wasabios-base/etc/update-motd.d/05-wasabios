@@ -1,0 +1,4 @@
+#!/bin/sh
+# ターミナルでログインしたときの挨拶
+. /etc/wasabios/release
+printf '\n  ようこそ %s %s へ!   困ったら: wasabi help\n\n' "$WASABIOS_NAME" "$WASABIOS_VERSION"
