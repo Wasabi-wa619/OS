@@ -1,0 +1,18 @@
+# 全構成に入るパッケージ (1行1つ、#はコメント)
+linux-generic
+casper
+ubuntu-minimal
+ubuntu-standard
+sudo
+network-manager
+locales
+tzdata
+keyboard-configuration
+console-setup
+bash-completion
+vim
+curl
+wget
+git
+htop
+language-pack-ja
