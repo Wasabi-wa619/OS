@@ -13,8 +13,8 @@ debootstrap            Ubuntu の最小システムを build/chroot/ に展開
    ↓
 hooks/*.sh             chroot 内で番号順に実行してカスタマイズ
    ↓                     00-apt       リポジトリ設定
+   ↓                     05-firefox   Firefox (deb版, Mozilla公式リポジトリ)
    ↓                     10-packages  config/packages/*.list のパッケージを入れる
-   ↓                     20-firefox   Firefox (deb版)
    ↓                     30-locale    日本語・タイムゾーン
    ↓                     40-branding  OS名を書き換え (os-release, 起動画面など)
    ↓                     90-cleanup   initramfs 再生成・掃除
@@ -44,6 +44,7 @@ root 権限と 20GB 程度の空きディスク、ネット接続が必要です
 make deps              # ビルドツールを入れる (初回のみ)
 make iso               # ISO を作成 → out/wasabios-0.1-amd64.iso
 make iso DESKTOP=none  # CUI だけの軽い版
+make iso BROWSER=none  # Firefox を入れない
 make run               # QEMU で起動して試す (make run-uefi で UEFI)
 make clean             # ビルド結果を消す
 ```

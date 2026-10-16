@@ -67,7 +67,7 @@ for hook in "$ROOT_DIR"/hooks/*.sh; do
   log "hook: $name"
   chroot "$CHROOT" /usr/bin/env -i \
     HOME=/root PATH=/usr/sbin:/usr/bin:/sbin:/bin \
-    DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 DESKTOP="$DESKTOP" \
+    DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 DESKTOP="$DESKTOP" BROWSER="$BROWSER" \
     /bin/bash -e "/tmp/build/hooks/$name"
 done
 

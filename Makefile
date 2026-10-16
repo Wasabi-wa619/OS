@@ -2,6 +2,7 @@
 .PHONY: deps iso run run-uefi clean
 
 DESKTOP ?= $(shell . ./config/os.conf && echo $$DESKTOP)
+BROWSER ?= $(shell . ./config/os.conf && echo $$BROWSER)
 ISO = $(firstword $(wildcard out/*.iso))
 
 ## ビルドに必要なツールを入れる (Ubuntu/Debian ホスト)
@@ -12,7 +13,7 @@ deps:
 
 ## ISO をビルドする
 iso:
-	sudo DESKTOP=$(DESKTOP) ./scripts/build.sh
+	sudo DESKTOP=$(DESKTOP) BROWSER=$(BROWSER) ./scripts/build.sh
 
 ## QEMU で起動して試す (BIOS)
 run:
