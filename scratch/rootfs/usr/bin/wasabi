@@ -1,0 +1,52 @@
+#!/bin/sh
+# wasabi - WasabiOS Scratch のお助けコマンド (画面が日本語を出せないので表示は英語)
+. /etc/os-release
+
+info() {
+  mem_total=$(awk '/MemTotal/ {printf "%d", $2/1024}' /proc/meminfo)
+  mem_free=$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo)
+  cpu=$(awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo)
+  model=$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo "unknown")
+  up=$(awk '{s=int($1); printf "%dm %ds", s/60, s%60}' /proc/uptime)
+  boot=$([ -d /sys/firmware/efi ] && echo UEFI || echo BIOS)
+  procs=$(ls -d /proc/[0-9]* | wc -l)
+  printf '\033[1;32m'
+  cat <<'ART'
+   ▄██▄   ▄██▄
+  ████████████
+  ▀██████████▀
+    ▀██████▀
+      ▀██▀
+       ▐▌
+ART
+  printf '\033[0m'
+  echo "  $PRETTY_NAME"
+  echo "  Model      $model"
+  echo "  CPU        $cpu"
+  echo "  Memory     $((mem_total - mem_free)) / ${mem_total} MB"
+  echo "  Kernel     $(uname -r)"
+  echo "  Init       $(cat /proc/1/comm) (handmade, PID 1)"
+  echo "  Boot       $boot"
+  echo "  Processes  $procs"
+  echo "  Uptime     $up"
+  echo
+}
+
+case "${1:-info}" in
+  info) info ;;
+  version) echo "$PRETTY_NAME" ;;
+  help)
+    cat <<HELP
+Useful commands on WasabiOS Scratch
+  wasabi                  about this system
+  ls cd cat cp mv rm      files
+  vi                      text editor
+  top ps free df          what the system is doing
+  ip ping wget            network
+  dmesg                   kernel messages
+  poweroff / reboot
+All commands: busybox --list
+HELP
+    ;;
+  *) echo "unknown command: $1 (try: wasabi help)"; exit 1 ;;
+esac

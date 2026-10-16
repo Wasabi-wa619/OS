@@ -15,6 +15,9 @@ WasabiOS の独自部分はすべて `packages/` の中の **.deb パッケー�
 | USB メモリ | 不要 | 必要 |
 | 元に戻す | `make uninstall` で Ubuntu に戻る | USB を抜くだけ |
 
+> **ゼロから組み立てる版もあります → [`scratch/`](scratch/README.md)**
+> Ubuntu を使わず、Linux カーネルを自分でビルドし、最初に動くプログラム (init) も自作した OS です。
+
 ## WasabiOS の独自部分
 
 | パッケージ | 中身 |

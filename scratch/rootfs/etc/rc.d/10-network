@@ -1,0 +1,11 @@
+#!/bin/sh
+# ネットワーク: loopback と、有線 LAN があれば DHCP で IP をもらう
+ip link set lo up
+for dev in /sys/class/net/*; do
+  name=${dev##*/}
+  [ "$name" = lo ] && continue
+  [ -d "$dev/wireless" ] && continue
+  ip link set "$name" up
+  udhcpc -b -q -i "$name" -s /usr/share/udhcpc/default.script >/dev/null 2>&1
+done
+exit 0

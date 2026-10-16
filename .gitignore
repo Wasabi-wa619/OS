@@ -2,3 +2,4 @@
 /out/
 *.iso
 /build-*/
+/scratch/build/

@@ -1,6 +1,7 @@
 # GitHub 上で自動ビルドする。
 # - .deb (独自パッケージ): main への push のたびに作る → Actions の実行結果の Artifacts から取れる
 # - ISO: Actions タブ → "Build" → "Run workflow" で手動実行したときと、v* タグを push したときに作る
+# - ゼロから組み立てる版 (scratch/) の ISO: main への push、手動実行、タグのときに作る
 # - v0.1 のようなタグを push すると Releases に .deb と ISO を添付する
 name: Build
 
@@ -73,9 +74,27 @@ jobs:
             out/SHA256SUMS
           compression-level: 0
 
+  # ゼロから組み立てる版 (scratch/)。小さいので push のたびに作る
+  scratch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc flex bison libelf-dev libssl-dev \
+            cpio curl xorriso mtools grub-common grub-pc-bin grub-efi-amd64-bin
+      - name: Build WasabiOS Scratch
+        run: bash ./scratch/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iso-scratch
+          path: out/wasabios-scratch-*.iso
+
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [debs, iso]
+    needs: [debs, iso, scratch]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4

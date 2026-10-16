@@ -1,0 +1,3 @@
+#!/bin/sh
+# ハードウェアの時計から時刻を読む (Mac は UTC ではなく現地時刻のことがある)
+hwclock -s -u 2>/dev/null || true
