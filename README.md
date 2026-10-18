@@ -92,6 +92,24 @@ Ubuntu のアップデートで os-release が更新されても、自動で Was
   `make iso DESKTOP=xfce` で軽いデスクトップ、`MAC_SUPPORT=no` で Mac 用ドライバーなし。
   初回は WasabiOS カーネルのビルドに 1〜3 時間かかります (2回目からは作ったものを使う)。
 
+### 仮想マシンで試す (USB なしで、いまの Ubuntu の中で)
+
+MacBook の Ubuntu の中に仮想のパソコンを作って、WasabiOS を起動できます。
+インストールも仮想の SSD に対して行うので、本物のディスクには何も起きません。
+
+```bash
+make deps                                  # QEMU などを入れる (初回のみ)
+make vm ISO=~/ダウンロード/wasabios-0.1-amd64.iso   # ISO から起動 (ライブ USB の代わり)
+```
+
+- 開いたウィンドウの中で WasabiOS が動きます。Dock の「WasabiOS をインストール」で仮想 SSD にインストールも試せます
+  (インストール先は `/dev/vda`)
+- インストールしたあとは `make vm-disk` で、仮想 SSD から起動 (USB を抜いた状態)
+- 最初からやり直す: `make vm-reset`
+- 自分でビルドした ISO なら `ISO=...` は省略できます
+- マウスがウィンドウから出られなくなったら **Ctrl + Alt + G**
+- 重いときはメモリを増やす: `make vm MEM=4096` (MacBook のメモリの半分くらいまで)
+
 ### Chromebook で USB に書き込む
 
 1. Chromebook に Chrome ウェブストアの **Chromebook リカバリ ユーティリティ** を入れる

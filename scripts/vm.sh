@@ -69,13 +69,13 @@ case "${1:-live}" in
     prepare
     echo "起動: $iso (ライブ) + 仮想 SSD"
     base -drive file="$iso",media=cdrom,readonly=on,if=none,id=cd -device ide-cd,drive=cd,bootindex=0 \
-         -drive file="$DISK",format=raw,if=virtio,bootindex=1
+         -drive file="$DISK",format=raw,if=none,id=hd -device virtio-blk-pci,drive=hd,bootindex=1
     ;;
   disk)
     [ -f "$DISK" ] || die "仮想 SSD がありません。先に vm.sh live でインストールしてください"
     prepare
     echo "起動: 仮想 SSD (インストール済みの WasabiOS)"
-    base -drive file="$DISK",format=raw,if=virtio,bootindex=0
+    base -drive file="$DISK",format=raw,if=none,id=hd -device virtio-blk-pci,drive=hd,bootindex=0
     ;;
   seed)
     iso=$(find_iso 'wasabios-scratch-*.iso')
