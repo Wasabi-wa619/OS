@@ -1,9 +1,8 @@
 # よく使うコマンドのまとめ
-.PHONY: deps deb install uninstall iso run run-uefi clean
+.PHONY: deps deb install uninstall iso vm vm-disk vm-seed vm-reset clean
 
 DESKTOP ?= $(shell . ./config/os.conf && echo $$DESKTOP)
 BROWSER ?= $(shell . ./config/os.conf && echo $$BROWSER)
-ISO = $(firstword $(wildcard out/*.iso))
 
 ## ビルドに必要なツールを入れる (Ubuntu/Debian ホスト)
 deps:
@@ -27,14 +26,22 @@ uninstall:
 iso:
 	sudo DESKTOP=$(DESKTOP) BROWSER=$(BROWSER) bash ./scripts/build.sh
 
-## QEMU で起動して試す (BIOS)
-run:
-	qemu-system-x86_64 -enable-kvm -m 4096 -smp 2 -cdrom $(ISO) -boot d -vga virtio
+## 仮想マシンで試す (scripts/vm.sh)。ISO=ダウンロードした.iso で別の ISO も使える
+## ライブ USB の代わりに ISO から起動。仮想 SSD 付きなのでインストールも試せる
+vm:
+	bash ./scripts/vm.sh live
 
-## QEMU で起動して試す (UEFI)
-run-uefi:
-	qemu-system-x86_64 -enable-kvm -m 4096 -smp 2 -cdrom $(ISO) -boot d -vga virtio \
-		-bios /usr/share/ovmf/OVMF.fd
+## インストールした仮想 SSD から起動
+vm-disk:
+	bash ./scripts/vm.sh disk
+
+## シード版を起動
+vm-seed:
+	bash ./scripts/vm.sh seed
+
+## 仮想 SSD を消して最初からやり直す
+vm-reset:
+	bash ./scripts/vm.sh reset
 
 ## ビルド結果を全部消して最初からやり直せるようにする
 ## (ビルドが途中で止まって /dev などがマウントされたままでも、本物の /dev を消さないように先に外す)
